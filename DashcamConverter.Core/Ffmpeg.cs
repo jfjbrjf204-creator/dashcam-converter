@@ -59,6 +59,114 @@ public static class Ffmpeg
         return $"код ошибки {errcode}";
     }
 
+    private static string MediaTypeName(AVMediaType type) => type switch
+    {
+        AVMediaType.AVMEDIA_TYPE_VIDEO => "video",
+        AVMediaType.AVMEDIA_TYPE_AUDIO => "audio",
+        AVMediaType.AVMEDIA_TYPE_SUBTITLE => "subtitle",
+        AVMediaType.AVMEDIA_TYPE_DATA => "data",
+        AVMediaType.AVMEDIA_TYPE_ATTACHMENT => "attachment",
+        AVMediaType.AVMEDIA_TYPE_UNKNOWN => "unknown",
+        _ => type.ToString()
+    };
+
+    private static string CodecTagString(uint tag)
+    {
+        if (tag == 0)
+            return "0x00000000";
+
+        Span<char> chars = stackalloc char[4];
+        for (var i = 0; i < 4; i++)
+        {
+            var b = (byte)((tag >> (8 * i)) & 0xFF);
+            chars[i] = b >= 32 && b <= 126 ? (char)b : '.';
+        }
+
+        return $"{new string(chars)} / 0x{tag:X8}";
+    }
+
+    private static unsafe string StreamDiagnostics(int index, AVStream* stream)
+    {
+        if (stream == null || stream->codecpar == null)
+            return $"stream #{index}: null";
+
+        var codecpar = stream->codecpar;
+        var parts = new List<string>
+        {
+            $"stream #{index}",
+            $"type={MediaTypeName(codecpar->codec_type)}",
+            $"codec_id={codecpar->codec_id}",
+            $"codec_tag={CodecTagString(codecpar->codec_tag)}",
+            $"time_base={stream->time_base.num}/{stream->time_base.den}",
+            $"duration={stream->duration}",
+            $"bit_rate={codecpar->bit_rate}"
+        };
+
+        if (codecpar->codec_type == AVMediaType.AVMEDIA_TYPE_VIDEO)
+            parts.Add($"size={codecpar->width}x{codecpar->height}");
+
+        if (codecpar->codec_type == AVMediaType.AVMEDIA_TYPE_AUDIO)
+        {
+            parts.Add($"sample_rate={codecpar->sample_rate}");
+            parts.Add($"channels={codecpar->ch_layout.nb_channels}");
+        }
+
+        return string.Join(", ", parts);
+    }
+
+    private static unsafe string BuildWriteHeaderError(
+        int ret,
+        string outputPath,
+        AVFormatContext* inCtx,
+        AVFormatContext* outCtx,
+        IReadOnlyList<TranscodeState> transcodeStates)
+    {
+        var lines = new List<string>
+        {
+            $"[FFMPEG-025] avformat_write_header \"{outputPath}\": {FfmpegErrorString(ret)}",
+            "Цепочка: CORE-CONV-001 -> FFMPEG-025",
+            $"Выходной файл: {outputPath}",
+            $"Количество входных потоков: {(inCtx == null ? 0 : inCtx->nb_streams)}",
+            $"Количество выходных потоков: {(outCtx == null ? 0 : outCtx->nb_streams)}"
+        };
+
+        if (inCtx != null)
+        {
+            lines.Add("Входные потоки:");
+            for (var i = 0; i < inCtx->nb_streams; i++)
+                lines.Add($"  - {StreamDiagnostics(i, inCtx->streams[i])}");
+        }
+
+        if (outCtx != null)
+        {
+            lines.Add("Выходные потоки перед записью заголовка:");
+            for (var i = 0; i < outCtx->nb_streams; i++)
+                lines.Add($"  - {StreamDiagnostics(i, outCtx->streams[i])}");
+        }
+
+        lines.Add("Перекодирование аудио:");
+        if (transcodeStates.Count == 0)
+        {
+            lines.Add("  - не выполнялось");
+        }
+        else
+        {
+            foreach (var state in transcodeStates)
+            {
+                lines.Add(
+                    $"  - input stream #{state.inStreamIdx} -> output stream #{state.outStreamIdx}, " +
+                    $"decoder={state.decCtx->codec_id}, encoder={state.encCtx->codec_id}, " +
+                    $"sample_rate={state.encCtx->sample_rate}, channels={state.encCtx->ch_layout.nb_channels}, " +
+                    $"bit_rate={state.encCtx->bit_rate}, frame_size={state.encCtx->frame_size}");
+            }
+        }
+
+        lines.Add("Диагностика: FFMPEG-025 возникает до записи пакетов, значит muxer отклонил параметры выходного контейнера/потоков.");
+        lines.Add("Если codec_id=AV_CODEC_ID_NONE или codec_tag не соответствует контейнеру, проблема в определении/совместимости потока, а не в данных пакетов.");
+
+        return string.Join(Environment.NewLine, lines);
+    }
+
     public static void Initialize()
     {
         if (_initialized)
@@ -406,7 +514,7 @@ public static class Ffmpeg
 
             ret = ffmpeg.avformat_write_header(outCtx, null);
             if (ret < 0)
-                return (ret, $"[FFMPEG-025] avformat_write_header \"{outputPath}\": {FfmpegErrorString(ret)}");
+                return (ret, BuildWriteHeaderError(ret, outputPath, inCtx, outCtx, transcodeStates));
 
             pkt = ffmpeg.av_packet_alloc();
             var totalDuration = inCtx->duration / (double)ffmpeg.AV_TIME_BASE;
