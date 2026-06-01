@@ -9,145 +9,199 @@ public class MainForm : Form
     private readonly TextBox _outputDirTextBox;
     private readonly ProgressBar _progressBar;
     private readonly Label _statusLabel;
+    private readonly Label _hintLabel;
     private readonly Button _convertButton;
     private readonly Button _addButton;
     private readonly Button _clearButton;
     private readonly Button _browseButton;
 
     private CancellationTokenSource? _cts;
+    private bool _isConverting;
 
     public MainForm()
     {
         Text = "Dashcam Converter v1.0";
-        Size = new Size(600, 440);
-        MinimumSize = new Size(500, 380);
-        Font = new Font("Arial", 10);
+        Size = new Size(680, 520);
+        MinimumSize = new Size(620, 470);
+        StartPosition = FormStartPosition.CenterScreen;
+        Font = new Font("Segoe UI", 10);
 
-        // --- Группа: исходные файлы ---
-        var filesGroup = new GroupBox
+        var root = new TableLayoutPanel
         {
-            Text = "Исходные файлы",
-            Dock = DockStyle.Top,
-            Height = 200,
+            Dock = DockStyle.Fill,
+            ColumnCount = 1,
+            RowCount = 5,
+            Padding = new Padding(12),
+        };
+        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 58));
+        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 70));
+        root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 82));
+        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 72));
+        Controls.Add(root);
+
+        _hintLabel = new Label
+        {
+            AutoSize = false,
+            Dock = DockStyle.Fill,
+            TextAlign = ContentAlignment.MiddleLeft,
+            Text = "1) Выберите папку сохранения  →  2) Добавьте видеофайлы  →  3) Нажмите большую кнопку «Старт конвертации»",
+            Padding = new Padding(8, 0, 8, 0),
+        };
+        root.Controls.Add(_hintLabel, 0, 0);
+
+        var saveGroup = new GroupBox
+        {
+            Text = "1. Папка сохранения",
+            Dock = DockStyle.Fill,
             Padding = new Padding(10),
         };
+        root.Controls.Add(saveGroup, 0, 1);
+
+        var saveLayout = new TableLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            ColumnCount = 2,
+            RowCount = 1,
+            Padding = new Padding(0, 4, 0, 0),
+        };
+        saveLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        saveLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 95));
+        saveGroup.Controls.Add(saveLayout);
+
+        _outputDirTextBox = new TextBox
+        {
+            Dock = DockStyle.Fill,
+            Text = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
+        };
+        _outputDirTextBox.TextChanged += (_, _) => UpdateActionState();
+        saveLayout.Controls.Add(_outputDirTextBox, 0, 0);
+
+        _browseButton = new Button
+        {
+            Text = "Обзор…",
+            Dock = DockStyle.Fill,
+        };
+        _browseButton.Click += OnBrowseOutput;
+        saveLayout.Controls.Add(_browseButton, 1, 0);
+
+        var filesGroup = new GroupBox
+        {
+            Text = "2. Исходные видеофайлы",
+            Dock = DockStyle.Fill,
+            Padding = new Padding(10),
+        };
+        root.Controls.Add(filesGroup, 0, 2);
+
+        var filesLayout = new TableLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            ColumnCount = 1,
+            RowCount = 2,
+        };
+        filesLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        filesLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 42));
+        filesGroup.Controls.Add(filesLayout);
 
         _fileListBox = new ListBox
         {
             Dock = DockStyle.Fill,
             IntegralHeight = false,
         };
-        filesGroup.Controls.Add(_fileListBox);
+        filesLayout.Controls.Add(_fileListBox, 0, 0);
 
-        var filesBtnPanel = new Panel
+        var filesButtonPanel = new FlowLayoutPanel
         {
-            Dock = DockStyle.Bottom,
-            Height = 35,
-            Padding = new Padding(0, 5, 0, 0),
+            Dock = DockStyle.Fill,
+            FlowDirection = FlowDirection.LeftToRight,
+            WrapContents = false,
+            Padding = new Padding(0, 6, 0, 0),
         };
+        filesLayout.Controls.Add(filesButtonPanel, 0, 1);
 
         _addButton = new Button
         {
-            Text = "Добавить файлы",
-            Width = 130,
-            Dock = DockStyle.Left,
+            Text = "+ Добавить файлы",
+            Width = 150,
+            Height = 30,
         };
         _addButton.Click += OnAddFiles;
-        filesBtnPanel.Controls.Add(_addButton);
+        filesButtonPanel.Controls.Add(_addButton);
 
         _clearButton = new Button
         {
-            Text = "Очистить",
-            Width = 100,
-            Dock = DockStyle.Left,
-            Margin = new Padding(5, 0, 0, 0),
+            Text = "Очистить список",
+            Width = 125,
+            Height = 30,
         };
         _clearButton.Click += (_, _) => ClearFiles();
-        filesBtnPanel.Controls.Add(_clearButton);
+        filesButtonPanel.Controls.Add(_clearButton);
 
-        filesGroup.Controls.Add(filesBtnPanel);
-        Controls.Add(filesGroup);
-
-        // --- Группа: папка сохранения ---
-        var saveGroup = new GroupBox
-        {
-            Text = "Папка сохранения",
-            Dock = DockStyle.Top,
-            Height = 60,
-            Padding = new Padding(10),
-        };
-
-        _outputDirTextBox = new TextBox
-        {
-            Dock = DockStyle.Fill,
-        };
-        saveGroup.Controls.Add(_outputDirTextBox);
-
-        _browseButton = new Button
-        {
-            Text = "Обзор",
-            Width = 80,
-            Dock = DockStyle.Right,
-        };
-        _browseButton.Click += OnBrowseOutput;
-        saveGroup.Controls.Add(_browseButton);
-
-        Controls.Add(saveGroup);
-
-        // --- Группа: прогресс ---
         var progressGroup = new GroupBox
         {
             Text = "Прогресс",
-            Dock = DockStyle.Top,
-            Height = 70,
+            Dock = DockStyle.Fill,
             Padding = new Padding(10),
         };
+        root.Controls.Add(progressGroup, 0, 3);
+
+        var progressLayout = new TableLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            ColumnCount = 1,
+            RowCount = 2,
+        };
+        progressLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 28));
+        progressLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        progressGroup.Controls.Add(progressLayout);
 
         _progressBar = new ProgressBar
         {
-            Dock = DockStyle.Top,
-            Height = 25,
+            Dock = DockStyle.Fill,
             Maximum = 100,
             Style = ProgressBarStyle.Continuous,
         };
-        progressGroup.Controls.Add(_progressBar);
+        progressLayout.Controls.Add(_progressBar, 0, 0);
 
         _statusLabel = new Label
         {
-            Text = "Готово",
+            Text = "Добавьте файлы для конвертации.",
             Dock = DockStyle.Fill,
             TextAlign = ContentAlignment.MiddleLeft,
         };
-        progressGroup.Controls.Add(_statusLabel);
+        progressLayout.Controls.Add(_statusLabel, 0, 1);
 
-        Controls.Add(progressGroup);
-
-        // --- Панель: кнопка «Конвертировать» ---
-        var bottomPanel = new Panel
+        var actionPanel = new TableLayoutPanel
         {
             Dock = DockStyle.Fill,
-            Padding = new Padding(10),
+            ColumnCount = 2,
+            RowCount = 1,
+            Padding = new Padding(0, 12, 0, 0),
         };
+        actionPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        actionPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 240));
+        root.Controls.Add(actionPanel, 0, 4);
+
+        var actionHint = new Label
+        {
+            Dock = DockStyle.Fill,
+            TextAlign = ContentAlignment.MiddleLeft,
+            Text = "Кнопка станет активной, когда выбран хотя бы один файл и существует папка сохранения.",
+        };
+        actionPanel.Controls.Add(actionHint, 0, 0);
 
         _convertButton = new Button
         {
-            Text = "Конвертировать",
-            Height = 40,
-            Width = 180,
-            Anchor = AnchorStyles.None,
+            Text = "▶ Старт конвертации",
+            Dock = DockStyle.Fill,
+            Enabled = false,
+            Font = new Font(Font, FontStyle.Bold),
         };
         _convertButton.Click += OnConvert;
-        bottomPanel.Controls.Add(_convertButton);
-        // Центрирование кнопки
-        bottomPanel.Resize += (_, _) =>
-        {
-            _convertButton.Left = (bottomPanel.Width - _convertButton.Width) / 2;
-            _convertButton.Top = (bottomPanel.Height - _convertButton.Height) / 2;
-        };
-
-        Controls.Add(bottomPanel);
+        actionPanel.Controls.Add(_convertButton, 1, 0);
 
         Load += OnFormLoad;
+        UpdateActionState();
     }
 
     private void OnFormLoad(object? sender, EventArgs e)
@@ -187,16 +241,20 @@ public class MainForm : Form
                 _fileListBox.Items.Add(path);
         }
 
-        // Папка сохранения по умолчанию — из первого файла
-        if (string.IsNullOrEmpty(_outputDirTextBox.Text) && dialog.FileNames.Length > 0)
+        // Папка сохранения по умолчанию — из первого файла, если пользователь её не выбрал.
+        if (string.IsNullOrWhiteSpace(_outputDirTextBox.Text) && dialog.FileNames.Length > 0)
             _outputDirTextBox.Text = Path.GetDirectoryName(dialog.FileNames[0]) ?? "";
+
+        _statusLabel.Text = $"Выбрано файлов: {_fileListBox.Items.Count}. Нажмите «Старт конвертации».";
+        UpdateActionState();
     }
 
     private void ClearFiles()
     {
         _fileListBox.Items.Clear();
         _progressBar.Value = 0;
-        _statusLabel.Text = "Готово";
+        _statusLabel.Text = "Добавьте файлы для конвертации.";
+        UpdateActionState();
     }
 
     private void OnBrowseOutput(object? sender, EventArgs e)
@@ -222,10 +280,11 @@ public class MainForm : Form
                 MessageBoxButtons.OK,
                 MessageBoxIcon.Warning
             );
+            UpdateActionState();
             return;
         }
 
-        var outputDir = _outputDirTextBox.Text;
+        var outputDir = _outputDirTextBox.Text.Trim();
         if (string.IsNullOrEmpty(outputDir) && files.Length > 0)
         {
             outputDir = Path.GetDirectoryName(files[0]) ?? "";
@@ -240,10 +299,11 @@ public class MainForm : Form
                 MessageBoxButtons.OK,
                 MessageBoxIcon.Error
             );
+            UpdateActionState();
             return;
         }
 
-        _convertButton.Enabled = false;
+        SetBusy(true);
         _progressBar.Value = 0;
         _statusLabel.Text = "Конвертация...";
 
@@ -321,9 +381,44 @@ public class MainForm : Form
         }
         finally
         {
-            _convertButton.Enabled = true;
+            SetBusy(false);
             _cts?.Dispose();
             _cts = null;
+        }
+    }
+
+    private void SetBusy(bool busy)
+    {
+        _isConverting = busy;
+        _addButton.Enabled = !busy;
+        _clearButton.Enabled = !busy;
+        _browseButton.Enabled = !busy;
+        _outputDirTextBox.Enabled = !busy;
+        _fileListBox.Enabled = !busy;
+        _convertButton.Text = busy ? "Идёт конвертация…" : "▶ Старт конвертации";
+        UpdateActionState();
+    }
+
+    private void UpdateActionState()
+    {
+        if (_isConverting)
+        {
+            _convertButton.Enabled = false;
+            return;
+        }
+
+        var hasFiles = _fileListBox.Items.Count > 0;
+        var outputDir = _outputDirTextBox.Text.Trim();
+        var hasOutputDir = outputDir.Length > 0 && Directory.Exists(outputDir);
+        _convertButton.Enabled = hasFiles && hasOutputDir;
+
+        if (!hasFiles)
+        {
+            _statusLabel.Text = "Добавьте файлы для конвертации.";
+        }
+        else if (!hasOutputDir)
+        {
+            _statusLabel.Text = "Выберите существующую папку сохранения.";
         }
     }
 
