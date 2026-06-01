@@ -45,9 +45,43 @@ public class MainForm : Form
         BuildConvertSection(root);
         BuildFooter(root);
 
+#if DEBUG
+        BackColor = Color.FromArgb(250, 250, 210); // LightGoldenrodYellow
+        ApplyDebugColors(root);
+#endif
+
         Load += OnFormLoad;
         UpdateActionState();
     }
+
+#if DEBUG
+    private static readonly Color[] DebugPalette =
+    {
+        Color.LightSteelBlue,  Color.LightCoral,   Color.LightGreen,
+        Color.LightBlue,       Color.LightPink,    Color.Moccasin,
+        Color.LightCyan,       Color.PaleGreen,    Color.PaleTurquoise,
+        Color.Plum,            Color.Wheat,        Color.Aquamarine,
+        Color.Thistle,         Color.Lavender,     Color.PeachPuff,
+        Color.MistyRose,       Color.Honeydew,     Color.LavenderBlush,
+        Color.Azure,           Color.SeaShell,
+    };
+
+    private static void ApplyDebugColors(Control control)
+    {
+        var idx = 0;
+        Walk(control);
+
+        void Walk(Control c)
+        {
+            if (c is Form) { c.BackColor = DebugPalette[0]; }
+            else if (c is TableLayoutPanel) { c.BackColor = DebugPalette[1 + (idx++ % (DebugPalette.Length - 1))]; }
+            else { c.BackColor = DebugPalette[(idx++ % DebugPalette.Length)]; }
+
+            foreach (Control child in c.Controls)
+                Walk(child);
+        }
+    }
+#endif
 
     // ================================================================
     // HEADER — app title + version
@@ -319,12 +353,16 @@ public class MainForm : Form
         {
             if (_convertButton.Enabled)
             {
+#if !DEBUG
                 _convertButton.BackColor = Color.FromArgb(0, 120, 212);
+#endif
                 _convertButton.ForeColor = Color.White;
             }
             else
             {
+#if !DEBUG
                 _convertButton.BackColor = SystemColors.Control;
+#endif
                 _convertButton.ForeColor = SystemColors.GrayText;
             }
         };
