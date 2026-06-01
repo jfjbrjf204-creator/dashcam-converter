@@ -142,6 +142,16 @@ Workflow `.github/workflows/ci.yml` на `windows-latest`:
 - Core-проект (`DashcamConverter.Core`) таргетит `net8.0`, но текущая поставка и загрузка FFmpeg DLL настроены под Windows.
 - Linux-сборка потребует отдельного CLI/GUI проекта и загрузки `libav*.so` вместо Windows DLL.
 
+## FFmpeg
+
+Этот проект использует **FFmpeg** — мощный кроссплатформенный набор инструментов для работы с мультимедиа.
+
+- **Официальный сайт FFmpeg**: https://ffmpeg.org/
+- **Исходный код FFmpeg**: https://github.com/FFmpeg/FFmpeg
+- **Сборки для Windows (BtbN GPL-shared)**: https://github.com/BtbN/FFmpeg-Builds/releases
+
+Приложение встраивает `FFmpeg.AutoGen` для P/Invoke вызовов FFmpeg C API и поставляет `avcodec`, `avformat`, `avutil`, `swresample` shared DLL внутри exe-файла.
+
 ## Лицензия
 
 GNU General Public License v3.0 (GPL-3.0) — проект использует GPL-сборки FFmpeg shared DLL.
