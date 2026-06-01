@@ -353,6 +353,7 @@ public static class Ffmpeg
                         encFrame->format = (int)encCtx->sample_fmt;
                         encFrame->sample_rate = encCtx->sample_rate;
                         ffmpeg.av_channel_layout_copy(&encFrame->ch_layout, &encCtx->ch_layout);
+                        encFrame->nb_samples = encCtx->frame_size > 0 ? encCtx->frame_size : 1024;
                         ret = ffmpeg.av_frame_get_buffer(encFrame, 0);
                         if (ret < 0)
                             return (ret, $"[FFMPEG-041] av_frame_get_buffer encFrame (stream {i}): {FfmpegErrorString(ret)}");
