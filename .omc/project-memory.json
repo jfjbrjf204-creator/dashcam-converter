@@ -1,0 +1,120 @@
+{
+  "version": "1.0.0",
+  "lastScanned": 1780301750171,
+  "projectRoot": "/home/z311/dashcam-converter",
+  "techStack": {
+    "languages": [],
+    "frameworks": [],
+    "packageManager": null,
+    "runtime": null
+  },
+  "build": {
+    "buildCommand": null,
+    "testCommand": null,
+    "lintCommand": null,
+    "devCommand": null,
+    "scripts": {}
+  },
+  "conventions": {
+    "namingStyle": null,
+    "importStyle": null,
+    "testPattern": null,
+    "fileOrganization": null
+  },
+  "structure": {
+    "isMonorepo": false,
+    "workspaces": [],
+    "mainDirectories": [
+      "tests"
+    ],
+    "gitBranches": null
+  },
+  "customNotes": [],
+  "directoryMap": {
+    "DashcamConverter": {
+      "path": "DashcamConverter",
+      "purpose": null,
+      "fileCount": 4,
+      "lastAccessed": 1780301750134,
+      "keyFiles": [
+        "AGENTS.md",
+        "DashcamConverter.csproj",
+        "MainForm.cs",
+        "Program.cs"
+      ]
+    },
+    "DashcamConverter.Core": {
+      "path": "DashcamConverter.Core",
+      "purpose": null,
+      "fileCount": 4,
+      "lastAccessed": 1780301750146,
+      "keyFiles": [
+        "AGENTS.md",
+        "Converter.cs",
+        "DashcamConverter.Core.csproj",
+        "Ffmpeg.cs"
+      ]
+    },
+    "DashcamConverter.Tests": {
+      "path": "DashcamConverter.Tests",
+      "purpose": null,
+      "fileCount": 4,
+      "lastAccessed": 1780301750149,
+      "keyFiles": [
+        "AGENTS.md",
+        "ConverterTests.cs",
+        "DashcamConverter.Tests.csproj",
+        "FfmpegTests.cs"
+      ]
+    },
+    "ffmpeg": {
+      "path": "ffmpeg",
+      "purpose": null,
+      "fileCount": 0,
+      "lastAccessed": 1780301750155,
+      "keyFiles": []
+    },
+    "tests": {
+      "path": "tests",
+      "purpose": "Test files",
+      "fileCount": 1,
+      "lastAccessed": 1780301750155,
+      "keyFiles": [
+        "AGENTS.md"
+      ]
+    },
+    "DashcamConverter/bin": {
+      "path": "DashcamConverter/bin",
+      "purpose": "Executable scripts",
+      "fileCount": 0,
+      "lastAccessed": 1780301750157,
+      "keyFiles": []
+    },
+    "DashcamConverter.Core/bin": {
+      "path": "DashcamConverter.Core/bin",
+      "purpose": "Executable scripts",
+      "fileCount": 0,
+      "lastAccessed": 1780301750158,
+      "keyFiles": []
+    },
+    "DashcamConverter.Tests/bin": {
+      "path": "DashcamConverter.Tests/bin",
+      "purpose": "Executable scripts",
+      "fileCount": 0,
+      "lastAccessed": 1780301750159,
+      "keyFiles": []
+    },
+    "tests/fixtures": {
+      "path": "tests/fixtures",
+      "purpose": "Test fixtures",
+      "fileCount": 2,
+      "lastAccessed": 1780301750170,
+      "keyFiles": [
+        "AGENTS.md",
+        "test.ts"
+      ]
+    }
+  },
+  "hotPaths": [],
+  "userDirectives": []
+}

@@ -1,0 +1,66 @@
+{
+  "version": 1,
+  "per_turn": [
+    {
+      "topic": "audio-transcode-adpcm-mp3",
+      "ts": "2026-06-01T10:00:46.853Z",
+      "queries": 0,
+      "results_returned": 0,
+      "nodes_emitted": 0,
+      "collisions_detected": 0,
+      "cap_hit": false,
+      "stale_rechecks": 0,
+      "links_made": 0,
+      "validator_repairs": 0
+    },
+    {
+      "topic": "gui-error-message",
+      "ts": "2026-06-01T09:19:00.857Z",
+      "queries": 1,
+      "results_returned": 0,
+      "nodes_emitted": 0,
+      "collisions_detected": 0,
+      "cap_hit": false,
+      "stale_rechecks": 0,
+      "links_made": 0,
+      "validator_repairs": 0
+    },
+    {
+      "topic": "mainform-ui-version-info",
+      "ts": "2026-06-01T08:28:49.791Z",
+      "queries": 0,
+      "results_returned": 0,
+      "nodes_emitted": 0,
+      "collisions_detected": 0,
+      "cap_hit": false,
+      "stale_rechecks": 0,
+      "links_made": 0,
+      "validator_repairs": 0
+    },
+    {
+      "topic": "ui-ux-assessment",
+      "ts": "2026-06-01T08:27:02.283Z",
+      "queries": 0,
+      "results_returned": 0,
+      "nodes_emitted": 0,
+      "collisions_detected": 0,
+      "cap_hit": false,
+      "stale_rechecks": 0,
+      "links_made": 0,
+      "validator_repairs": 0
+    },
+    {
+      "topic": "deepinit-agents-docs",
+      "ts": "2026-06-01T07:56:35.957Z",
+      "queries": 0,
+      "results_returned": 0,
+      "nodes_emitted": 0,
+      "collisions_detected": 0,
+      "cap_hit": false,
+      "stale_rechecks": 0,
+      "links_made": 0,
+      "validator_repairs": 0
+    }
+  ],
+  "rollup_weekly": []
+}
