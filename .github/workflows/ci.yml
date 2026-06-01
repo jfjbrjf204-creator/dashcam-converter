@@ -3,6 +3,7 @@ name: CI
 on:
   push:
     branches: [main]
+    tags: ['v*']
   pull_request:
     branches: [main]
 
@@ -72,21 +73,23 @@ jobs:
           path: DashcamConverter-win-x64.zip
 
       - name: Publish GitHub Release
-        if: github.ref == 'refs/heads/main'
+        if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          $tag = "v1.0.4"
-          $title = "Dashcam Converter v1.0.4"
+          # Determine tag from git ref, or read version from Program.cs
+          $ref = "${{ github.ref }}"
+          if ($ref -match '^refs/tags/(v.+)$') {
+            $tag = $Matches[1]
+          } else {
+            $match = Select-String -Path DashcamConverter/Program.cs -Pattern 'Version\s*=\s*"([^"]+)"'
+            $ver = $match.Matches[0].Groups[1].Value
+            $tag = "v$ver"
+          }
+          $title = "Dashcam Converter $tag"
           $notes = @"
           Windows x64 self-contained build.
-
-          ## Изменения
-
-          - Исправлена ошибка FFMPEG-041: добавлено выделение буфера для аудиофрейма перед перекодировкой.
-          - Автоматическая перекодировка несовместимого аудио (ADPCM → AAC для MP4, MP3 для остальных контейнеров).
-          - Расширены сообщения об ошибках с кодами FFmpeg и CORE для диагностики.
 
           Download `DashcamConverter-win-x64.zip`, unpack it, and run `DashcamConverter.exe`.
           "@
@@ -94,5 +97,5 @@ jobs:
           if (gh release view $tag 2>$null) {
             gh release upload $tag DashcamConverter-win-x64.zip --clobber
           } else {
-            gh release create $tag DashcamConverter-win-x64.zip --title $title --notes $notes --target $env:GITHUB_SHA
+            gh release create $tag DashcamConverter-win-x64.zip --title $title --notes $notes
           }
