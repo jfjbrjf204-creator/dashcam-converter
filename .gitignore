@@ -47,6 +47,7 @@ Thumbs.db
 # OpenCode / OMC tool artifacts
 .opencode/
 .lsmcp/
+.omc/
 .omo/
 .codemap/
 

@@ -242,25 +242,33 @@ public static class Ffmpeg
                     if (ret < 0)
                         return (ret, $"[FFMPEG-032] avcodec_open2 decoder (stream {i}): {FfmpegErrorString(ret)}");
 
-                    var encoder = ffmpeg.avcodec_find_encoder_by_name("libmp3lame");
-                    var encoderCodecId = AVCodecID.AV_CODEC_ID_MP3;
-                    if (encoder == null)
+                    var mp4FamilyOutput = outputPath.EndsWith(".mp4", StringComparison.OrdinalIgnoreCase)
+                                          || outputPath.EndsWith(".m4v", StringComparison.OrdinalIgnoreCase)
+                                          || outputPath.EndsWith(".mov", StringComparison.OrdinalIgnoreCase);
+
+                    AVCodec* encoder;
+                    AVCodecID encoderCodecId;
+                    if (mp4FamilyOutput)
                     {
-                        encoder = ffmpeg.avcodec_find_encoder(AVCodecID.AV_CODEC_ID_MP3);
+                        encoderCodecId = AVCodecID.AV_CODEC_ID_AAC;
+                        encoder = ffmpeg.avcodec_find_encoder(encoderCodecId);
+                    }
+                    else
+                    {
                         encoderCodecId = AVCodecID.AV_CODEC_ID_MP3;
+                        encoder = ffmpeg.avcodec_find_encoder_by_name("libmp3lame");
+                        if (encoder == null)
+                            encoder = ffmpeg.avcodec_find_encoder(encoderCodecId);
+                        if (encoder == null)
+                        {
+                            encoderCodecId = AVCodecID.AV_CODEC_ID_MP2;
+                            encoder = ffmpeg.avcodec_find_encoder(encoderCodecId)
+                                      ?? ffmpeg.avcodec_find_encoder_by_name("mp2");
+                        }
                     }
+
                     if (encoder == null)
-                    {
-                        encoder = ffmpeg.avcodec_find_encoder(AVCodecID.AV_CODEC_ID_MP2);
-                        encoderCodecId = AVCodecID.AV_CODEC_ID_MP2;
-                    }
-                    if (encoder == null)
-                    {
-                        encoder = ffmpeg.avcodec_find_encoder_by_name("mp2");
-                        encoderCodecId = AVCodecID.AV_CODEC_ID_MP2;
-                    }
-                    if (encoder == null)
-                        return (-1, $"[FFMPEG-033] No MP3/MP2 encoder found (stream {i}).");
+                        return (-1, $"[FFMPEG-033] No compatible audio encoder found (stream {i}).");
 
                     var encCtx = ffmpeg.avcodec_alloc_context3(encoder);
                     if (encCtx == null)
@@ -295,13 +303,14 @@ public static class Ffmpeg
                     }
 
                     encCtx->sample_fmt = targetFmt;
-                    encCtx->bit_rate = 128000;
+                    var channelCount = decCtx->ch_layout.nb_channels > 0 ? decCtx->ch_layout.nb_channels : 1;
+                    encCtx->bit_rate = encoderCodecId == AVCodecID.AV_CODEC_ID_AAC
+                        ? Math.Min(128000, sampleRate * channelCount * 6)
+                        : 128000;
                     encCtx->sample_rate = sampleRate;
-                    ffmpeg.av_channel_layout_default(&encCtx->ch_layout, decCtx->ch_layout.nb_channels);
+                    ffmpeg.av_channel_layout_default(&encCtx->ch_layout, channelCount);
                     encCtx->time_base = new AVRational { num = 1, den = encCtx->sample_rate };
-
-                    if (encoderCodecId == AVCodecID.AV_CODEC_ID_MP2)
-                        encCtx->codec_id = AVCodecID.AV_CODEC_ID_MP2;
+                    encCtx->codec_id = encoderCodecId;
 
                     ret = ffmpeg.avcodec_open2(encCtx, encoder, null);
                     if (ret < 0)
