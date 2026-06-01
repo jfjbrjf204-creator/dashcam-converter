@@ -30,12 +30,12 @@ public class MainForm : Form
             RowCount = 6,
             Padding = new Padding(16, 14, 16, 10),
         };
-        root.RowStyles.Add(new RowStyle(SizeType.AutoSize));      // 0: Header
-        root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));  // 1: File list
-        root.RowStyles.Add(new RowStyle(SizeType.AutoSize));      // 2: Output
-        root.RowStyles.Add(new RowStyle(SizeType.AutoSize));      // 3: Progress
-        root.RowStyles.Add(new RowStyle(SizeType.AutoSize));      // 4: Convert
-        root.RowStyles.Add(new RowStyle(SizeType.AutoSize));      // 5: Footer
+        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 48));
+        root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 78));
+        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 82));
+        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 66));
+        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 34));
         Controls.Add(root);
 
         BuildHeader(root);
@@ -139,15 +139,16 @@ public class MainForm : Form
             RowCount = 3,
             Margin = Padding.Empty,
         };
-        panel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        panel.RowStyles.Add(new RowStyle(SizeType.Absolute, 24));
         panel.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-        panel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        panel.RowStyles.Add(new RowStyle(SizeType.Absolute, 42));
         root.Controls.Add(panel, 0, 1);
 
         var header = new Label
         {
             Text = "1. Исходные видеофайлы",
             Dock = DockStyle.Fill,
+            Height = 24,
             Font = new Font(Font, FontStyle.Bold),
             TextAlign = ContentAlignment.MiddleLeft,
         };
@@ -163,9 +164,10 @@ public class MainForm : Form
 
         var btnRow = new FlowLayoutPanel
         {
-            Dock = DockStyle.Top,
+            Dock = DockStyle.Fill,
             FlowDirection = FlowDirection.LeftToRight,
             Padding = new Padding(0, 8, 0, 0),
+            WrapContents = false,
         };
         panel.Controls.Add(btnRow, 0, 2);
 
@@ -202,14 +204,15 @@ public class MainForm : Form
             RowCount = 2,
             Margin = new Padding(0, 12, 0, 0),
         };
-        panel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        panel.RowStyles.Add(new RowStyle(SizeType.Absolute, 34));
+        panel.RowStyles.Add(new RowStyle(SizeType.Absolute, 24));
+        panel.RowStyles.Add(new RowStyle(SizeType.Absolute, 36));
         root.Controls.Add(panel, 0, 2);
 
         var header = new Label
         {
             Text = "2. Папка для результатов",
             Dock = DockStyle.Fill,
+            Height = 22,
             Font = new Font(Font, FontStyle.Bold),
             TextAlign = ContentAlignment.MiddleLeft,
         };
@@ -238,7 +241,8 @@ public class MainForm : Form
         _browseButton = new Button
         {
             Text = "Обзор…",
-            Dock = DockStyle.Fill,
+            Dock = DockStyle.Top,
+            Height = 28,
             Margin = new Padding(6, 0, 0, 0),
         };
         _browseButton.Click += OnBrowseOutput;
@@ -258,15 +262,16 @@ public class MainForm : Form
             RowCount = 3,
             Margin = new Padding(0, 12, 0, 0),
         };
-        panel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        panel.RowStyles.Add(new RowStyle(SizeType.Absolute, 24));
         panel.RowStyles.Add(new RowStyle(SizeType.Absolute, 28));
-        panel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        panel.RowStyles.Add(new RowStyle(SizeType.Absolute, 26));
         root.Controls.Add(panel, 0, 3);
 
         var header = new Label
         {
             Text = "3. Ход конвертации",
             Dock = DockStyle.Fill,
+            Height = 22,
             Font = new Font(Font, FontStyle.Bold),
             TextAlign = ContentAlignment.MiddleLeft,
         };
@@ -376,6 +381,7 @@ public class MainForm : Form
             Dock = DockStyle.Fill,
             FlowDirection = FlowDirection.LeftToRight,
             Margin = new Padding(0, 8, 0, 0),
+            WrapContents = false,
         };
         root.Controls.Add(panel, 0, 5);
 
