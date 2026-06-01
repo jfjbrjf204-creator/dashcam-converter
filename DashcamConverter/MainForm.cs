@@ -141,7 +141,7 @@ public class MainForm : Form
         };
         panel.RowStyles.Add(new RowStyle(SizeType.Absolute, 24));
         panel.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-        panel.RowStyles.Add(new RowStyle(SizeType.Absolute, 42));
+        panel.RowStyles.Add(new RowStyle(SizeType.Absolute, 50));
         root.Controls.Add(panel, 0, 1);
 
         var header = new Label
@@ -166,7 +166,7 @@ public class MainForm : Form
         {
             Dock = DockStyle.Fill,
             FlowDirection = FlowDirection.LeftToRight,
-            Padding = new Padding(0, 8, 0, 0),
+            Padding = new Padding(0, 6, 0, 6),
             WrapContents = false,
         };
         panel.Controls.Add(btnRow, 0, 2);
@@ -175,7 +175,7 @@ public class MainForm : Form
         {
             Text = "+ Добавить файлы",
             Width = 150,
-            Height = 30,
+            Height = 32,
             Margin = new Padding(0, 0, 10, 0),
         };
         _addButton.Click += OnAddFiles;
@@ -185,7 +185,7 @@ public class MainForm : Form
         {
             Text = "Очистить список",
             Width = 140,
-            Height = 30,
+            Height = 32,
             Margin = Padding.Empty,
         };
         _clearButton.Click += (_, _) => ClearFiles();
