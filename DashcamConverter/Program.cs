@@ -2,7 +2,7 @@ namespace DashcamConverter;
 
 static class Program
 {
-    public const string Version = "0.0.8";
+    public const string Version = "0.0.9";
 
     [STAThread]
     static void Main(string[] args)

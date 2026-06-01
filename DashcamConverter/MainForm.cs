@@ -18,8 +18,8 @@ public class MainForm : Form
     public MainForm()
     {
         Text = "Dashcam Converter";
-        Size = new Size(660, 520);
-        MinimumSize = new Size(580, 460);
+        Size = new Size(680, 560);
+        MinimumSize = new Size(600, 500);
         StartPosition = FormStartPosition.CenterScreen;
         Font = new Font("Segoe UI", 10);
 
@@ -32,10 +32,10 @@ public class MainForm : Form
         };
         root.RowStyles.Add(new RowStyle(SizeType.Absolute, 36));
         root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 60));
         root.RowStyles.Add(new RowStyle(SizeType.Absolute, 72));
-        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 52));
-        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 26));
+        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 78));
+        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 64));
+        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 34));
         Controls.Add(root);
 
         BuildHeader(root);
@@ -229,8 +229,8 @@ public class MainForm : Form
             Margin = new Padding(0, 8, 0, 0),
         };
         panel.RowStyles.Add(new RowStyle(SizeType.Absolute, 22));
-        panel.RowStyles.Add(new RowStyle(SizeType.Absolute, 22));
-        panel.RowStyles.Add(new RowStyle(SizeType.Absolute, 20));
+        panel.RowStyles.Add(new RowStyle(SizeType.Absolute, 24));
+        panel.RowStyles.Add(new RowStyle(SizeType.Absolute, 24));
         root.Controls.Add(panel, 0, 3);
 
         var header = new Label
