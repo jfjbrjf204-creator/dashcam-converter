@@ -686,7 +686,7 @@ public static class Ffmpeg
                                 ts.encFrame->nb_samples = ret;
 
                                 ts.encFrame->pts = ffmpeg.av_rescale_q(
-                                    ts.sampleCount, inStreamRef->time_base, ts.encCtx->time_base);
+                                    ts.sampleCount, new AVRational { num = 1, den = ts.encCtx->sample_rate }, ts.encCtx->time_base);
                                 ts.sampleCount += ret;
 
                                 DebugLog.Write("ENCODE", $"swr_convert drain: produced {ret} samples, pts={ts.encFrame->pts} (stream #{inIdx})");
@@ -724,7 +724,7 @@ public static class Ffmpeg
                         {
                             // No resampler: send decoder frame directly to encoder
                             ts.decFrame->pts = ffmpeg.av_rescale_q(
-                                ts.sampleCount, inStreamRef->time_base, ts.encCtx->time_base);
+                                ts.sampleCount, new AVRational { num = 1, den = ts.encCtx->sample_rate }, ts.encCtx->time_base);
                             ts.sampleCount += ts.decFrame->nb_samples;
 
                             ret = ffmpeg.avcodec_send_frame(ts.encCtx, ts.decFrame);
@@ -850,7 +850,7 @@ public static class Ffmpeg
                     else
                     {
                         ts.decFrame->pts = ffmpeg.av_rescale_q(
-                            ts.sampleCount, inStreamRef->time_base, ts.encCtx->time_base);
+                            ts.sampleCount, new AVRational { num = 1, den = ts.encCtx->sample_rate }, ts.encCtx->time_base);
                         ts.sampleCount += ts.decFrame->nb_samples;
 
                         int encRet = ffmpeg.avcodec_send_frame(ts.encCtx, ts.decFrame);
@@ -898,7 +898,7 @@ public static class Ffmpeg
                         if (ret <= 0) break;
                         ts.encFrame->nb_samples = ret;
                         ts.encFrame->pts = ffmpeg.av_rescale_q(
-                            ts.sampleCount, inCtx->streams[ts.inStreamIdx]->time_base, ts.encCtx->time_base);
+                            ts.sampleCount, new AVRational { num = 1, den = ts.encCtx->sample_rate }, ts.encCtx->time_base);
                         ts.sampleCount += ret;
 
                         DebugLog.Write("ENCODE", $"swr drain: produced {ret} samples (flush, stream #{ts.inStreamIdx})");
