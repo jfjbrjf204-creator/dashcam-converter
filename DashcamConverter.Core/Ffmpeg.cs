@@ -370,8 +370,9 @@ public static class Ffmpeg
                         if (encoder == null)
                         {
                             encoderCodecId = AVCodecID.AV_CODEC_ID_MP2;
-                            encoder = ffmpeg.avcodec_find_encoder(encoderCodecId)
-                                      ?? ffmpeg.avcodec_find_encoder_by_name("mp2");
+                            encoder = ffmpeg.avcodec_find_encoder(encoderCodecId);
+                            if (encoder == null)
+                                encoder = ffmpeg.avcodec_find_encoder_by_name("mp2");
                         }
                     }
 
