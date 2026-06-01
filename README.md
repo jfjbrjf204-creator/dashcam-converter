@@ -6,6 +6,12 @@ Windows-приложение для перепаковки видео с вид�
 
 **Один self-contained Windows x64 package. Встроенные FFmpeg DLL. Без установки FFmpeg.**
 
+## tl;dr
+
+1. Скачать [`DashcamConverter-win-x64.zip`](https://github.com/jfjbrjf204-creator/dashcam-converter/releases/latest)
+2. Распаковать всё в отдельную папку на диске
+3. Запустить `DashcamConverter.exe`
+
 ## Что умеет
 
 - **Remux видео без перекодирования** — быстро, без потери качества.
