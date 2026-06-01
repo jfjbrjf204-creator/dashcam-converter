@@ -1,0 +1,43 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build-and-test:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Download FFmpeg shared DLLs
+        shell: pwsh
+        run: |
+          $url = "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl-shared.zip"
+          Invoke-WebRequest -Uri $url -OutFile ffmpeg.zip
+          Expand-Archive -Path ffmpeg.zip -DestinationPath .
+          $ffmpegDir = Get-ChildItem -Directory -Filter "ffmpeg-*" | Select-Object -First 1
+          New-Item -ItemType Directory -Force -Path DashcamConverter/ffmpeg
+          Copy-Item "$($ffmpegDir.Name)/bin/avcodec-*.dll" DashcamConverter/ffmpeg/
+          Copy-Item "$($ffmpegDir.Name)/bin/avformat-*.dll" DashcamConverter/ffmpeg/
+          Copy-Item "$($ffmpegDir.Name)/bin/avutil-*.dll" DashcamConverter/ffmpeg/
+          Copy-Item "$($ffmpegDir.Name)/bin/swresample-*.dll" DashcamConverter/ffmpeg/
+          Copy-Item "$($ffmpegDir.Name)/bin/swscale-*.dll" DashcamConverter/ffmpeg/
+
+      - name: Restore
+        run: dotnet restore
+
+      - name: Build
+        run: dotnet build --no-restore -c Release
+
+      - name: Test
+        run: dotnet test --no-build -c Release --verbosity normal
