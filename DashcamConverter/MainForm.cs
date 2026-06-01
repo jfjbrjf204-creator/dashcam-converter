@@ -33,9 +33,9 @@ public class MainForm : Form
         root.RowStyles.Add(new RowStyle(SizeType.Absolute, 48));
         root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         root.RowStyles.Add(new RowStyle(SizeType.Absolute, 78));
-        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 82));
-        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 66));
-        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 34));
+        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 96));
+        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 72));
+        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 40));
         Controls.Add(root);
 
         BuildHeader(root);
@@ -176,6 +176,7 @@ public class MainForm : Form
             Text = "+ Добавить файлы",
             Width = 150,
             Height = 30,
+            Margin = new Padding(0, 0, 10, 0),
         };
         _addButton.Click += OnAddFiles;
         btnRow.Controls.Add(_addButton);
@@ -185,7 +186,7 @@ public class MainForm : Form
             Text = "Очистить список",
             Width = 140,
             Height = 30,
-            Margin = new Padding(6, 0, 0, 0),
+            Margin = Padding.Empty,
         };
         _clearButton.Click += (_, _) => ClearFiles();
         btnRow.Controls.Add(_clearButton);
@@ -328,7 +329,7 @@ public class MainForm : Form
             Dock = DockStyle.Fill,
             ColumnCount = 3,
             RowCount = 1,
-            Margin = new Padding(0, 14, 0, 8),
+            Margin = new Padding(0, 12, 0, 10),
         };
         panel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 33));
         panel.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
