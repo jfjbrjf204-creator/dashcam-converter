@@ -9,7 +9,6 @@ public class MainForm : Form
     private readonly TextBox _outputDirTextBox;
     private readonly ProgressBar _progressBar;
     private readonly Label _statusLabel;
-    private readonly Label _hintLabel;
     private readonly Button _convertButton;
     private readonly Button _addButton;
     private readonly Button _clearButton;
@@ -21,8 +20,8 @@ public class MainForm : Form
     public MainForm()
     {
         Text = "Dashcam Converter v1.0";
-        Size = new Size(680, 520);
-        MinimumSize = new Size(620, 470);
+        Size = new Size(680, 470);
+        MinimumSize = new Size(620, 420);
         StartPosition = FormStartPosition.CenterScreen;
         Font = new Font("Segoe UI", 10);
 
@@ -30,33 +29,22 @@ public class MainForm : Form
         {
             Dock = DockStyle.Fill,
             ColumnCount = 1,
-            RowCount = 5,
+            RowCount = 3,
             Padding = new Padding(12),
         };
-        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 58));
-        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 70));
+        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 68));
         root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         root.RowStyles.Add(new RowStyle(SizeType.Absolute, 82));
-        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 72));
         Controls.Add(root);
 
-        _hintLabel = new Label
-        {
-            AutoSize = false,
-            Dock = DockStyle.Fill,
-            TextAlign = ContentAlignment.MiddleLeft,
-            Text = "1) Выберите папку сохранения  →  2) Добавьте видеофайлы  →  3) Нажмите большую кнопку «Старт конвертации»",
-            Padding = new Padding(8, 0, 8, 0),
-        };
-        root.Controls.Add(_hintLabel, 0, 0);
-
+        // --- 1. Папка сохранения ---
         var saveGroup = new GroupBox
         {
             Text = "1. Папка сохранения",
             Dock = DockStyle.Fill,
             Padding = new Padding(10),
         };
-        root.Controls.Add(saveGroup, 0, 1);
+        root.Controls.Add(saveGroup, 0, 0);
 
         var saveLayout = new TableLayoutPanel
         {
@@ -85,13 +73,14 @@ public class MainForm : Form
         _browseButton.Click += OnBrowseOutput;
         saveLayout.Controls.Add(_browseButton, 1, 0);
 
+        // --- 2. Исходные видеофайлы ---
         var filesGroup = new GroupBox
         {
             Text = "2. Исходные видеофайлы",
             Dock = DockStyle.Fill,
             Padding = new Padding(10),
         };
-        root.Controls.Add(filesGroup, 0, 2);
+        root.Controls.Add(filesGroup, 0, 1);
 
         var filesLayout = new TableLayoutPanel
         {
@@ -100,7 +89,7 @@ public class MainForm : Form
             RowCount = 2,
         };
         filesLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-        filesLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 42));
+        filesLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 40));
         filesGroup.Controls.Add(filesLayout);
 
         _fileListBox = new ListBox
@@ -110,13 +99,17 @@ public class MainForm : Form
         };
         filesLayout.Controls.Add(_fileListBox, 0, 0);
 
-        var filesButtonPanel = new FlowLayoutPanel
+        var filesButtonPanel = new TableLayoutPanel
         {
             Dock = DockStyle.Fill,
-            FlowDirection = FlowDirection.LeftToRight,
-            WrapContents = false,
-            Padding = new Padding(0, 6, 0, 0),
+            ColumnCount = 4,
+            RowCount = 1,
+            Padding = new Padding(0, 5, 0, 0),
         };
+        filesButtonPanel.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+        filesButtonPanel.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+        filesButtonPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        filesButtonPanel.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
         filesLayout.Controls.Add(filesButtonPanel, 0, 1);
 
         _addButton = new Button
@@ -126,24 +119,38 @@ public class MainForm : Form
             Height = 30,
         };
         _addButton.Click += OnAddFiles;
-        filesButtonPanel.Controls.Add(_addButton);
+        filesButtonPanel.Controls.Add(_addButton, 0, 0);
 
         _clearButton = new Button
         {
-            Text = "Очистить список",
-            Width = 125,
+            Text = "Очистить",
+            Width = 100,
             Height = 30,
         };
         _clearButton.Click += (_, _) => ClearFiles();
-        filesButtonPanel.Controls.Add(_clearButton);
+        filesButtonPanel.Controls.Add(_clearButton, 1, 0);
 
+        // spacer column (2) is percent 100 — nothing to add
+
+        _convertButton = new Button
+        {
+            Text = "▶ Старт конвертации",
+            Height = 30,
+            Width = 190,
+            Enabled = false,
+            Font = new Font(Font, FontStyle.Bold),
+        };
+        _convertButton.Click += OnConvert;
+        filesButtonPanel.Controls.Add(_convertButton, 3, 0);
+
+        // --- Прогресс ---
         var progressGroup = new GroupBox
         {
             Text = "Прогресс",
             Dock = DockStyle.Fill,
             Padding = new Padding(10),
         };
-        root.Controls.Add(progressGroup, 0, 3);
+        root.Controls.Add(progressGroup, 0, 2);
 
         var progressLayout = new TableLayoutPanel
         {
@@ -170,35 +177,6 @@ public class MainForm : Form
             TextAlign = ContentAlignment.MiddleLeft,
         };
         progressLayout.Controls.Add(_statusLabel, 0, 1);
-
-        var actionPanel = new TableLayoutPanel
-        {
-            Dock = DockStyle.Fill,
-            ColumnCount = 2,
-            RowCount = 1,
-            Padding = new Padding(0, 12, 0, 0),
-        };
-        actionPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-        actionPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 240));
-        root.Controls.Add(actionPanel, 0, 4);
-
-        var actionHint = new Label
-        {
-            Dock = DockStyle.Fill,
-            TextAlign = ContentAlignment.MiddleLeft,
-            Text = "Кнопка станет активной, когда выбран хотя бы один файл и существует папка сохранения.",
-        };
-        actionPanel.Controls.Add(actionHint, 0, 0);
-
-        _convertButton = new Button
-        {
-            Text = "▶ Старт конвертации",
-            Dock = DockStyle.Fill,
-            Enabled = false,
-            Font = new Font(Font, FontStyle.Bold),
-        };
-        _convertButton.Click += OnConvert;
-        actionPanel.Controls.Add(_convertButton, 1, 0);
 
         Load += OnFormLoad;
         UpdateActionState();
