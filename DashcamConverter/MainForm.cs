@@ -428,6 +428,14 @@ public class MainForm : Form
         try
         {
             Ffmpeg.Initialize();
+
+            if (DebugLog.Enabled)
+            {
+                var logPath = Path.Combine(AppContext.BaseDirectory, $"dashcam_{DateTime.Now:yyyyMMdd_HHmmss}.log");
+                DebugLog.LogFilePath = logPath;
+                DebugLog.Write("INIT", $"GUI started, log file: {logPath}");
+                _statusLabel.Text = $"Режим отладки: {logPath}";
+            }
         }
         catch (Exception ex)
         {

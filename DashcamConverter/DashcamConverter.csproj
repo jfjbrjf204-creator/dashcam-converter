@@ -17,6 +17,12 @@
     <ProjectReference Include="..\DashcamConverter.Core\DashcamConverter.Core.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <None Update="run-debug.bat">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
   <Target Name="SetCommitHash" BeforeTargets="CoreGenerateAssemblyInfo">
     <Exec Command="git rev-parse --short HEAD" ConsoleToMSBuild="true" StandardOutputImportance="low" IgnoreExitCode="true">
       <Output TaskParameter="ConsoleOutput" PropertyName="_GitHash" />

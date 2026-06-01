@@ -178,6 +178,7 @@ public static class Ffmpeg
             _dllDir = envPath;
             ffmpeg.RootPath = _dllDir;
             _initialized = true;
+            DebugLog.Write("INIT", $"FFmpeg initialized, DLL dir: {_dllDir}");
             return;
         }
 
@@ -186,6 +187,7 @@ public static class Ffmpeg
 
         var assembly = Assembly.GetExecutingAssembly();
         var resourceNames = assembly.GetManifestResourceNames();
+        var extractedCount = 0;
 
         foreach (var name in resourceNames)
         {
@@ -209,12 +211,14 @@ public static class Ffmpeg
                     continue;
                 using var file = File.Create(destPath);
                 stream.CopyTo(file);
+                extractedCount++;
             }
             catch
             {
             }
         }
 
+        DebugLog.Write("INIT", $"FFmpeg initialized, DLL dir: {_dllDir}, extracted {extractedCount} DLLs");
         ffmpeg.RootPath = _dllDir;
         _initialized = true;
     }
@@ -259,10 +263,12 @@ public static class Ffmpeg
         AVFormatContext* ctx = null;
         try
         {
+            DebugLog.Write("PROBE", $"ProbeDuration: {inputPath}");
             var ret = ffmpeg.avformat_open_input(&ctx, inputPath, null, null);
             if (ret < 0)
             {
                 error = $"[Ffmpeg.ProbeDuration] avformat_open_input \"{inputPath}\": {FfmpegErrorString(ret)}";
+                DebugLog.Write("PROBE", $"Probe failed for \"{inputPath}\": {error}");
                 return null;
             }
 
@@ -270,18 +276,25 @@ public static class Ffmpeg
             ffmpeg.avformat_find_stream_info(ctx, null);
             FixCodecIds(ctx);
 
+            DebugLog.Write("PROBE", $"Stream info found for \"{inputPath}\":");
+            for (var i = 0; i < ctx->nb_streams; i++)
+                DebugLog.Write("PROBE", $"  {StreamDiagnostics(i, ctx->streams[i])}");
+
             var duration = ctx->duration / (double)ffmpeg.AV_TIME_BASE;
             if (duration <= 0)
             {
                 error = $"[Ffmpeg.ProbeDuration] Не удалось определить длительность \"{inputPath}\": duration = {ctx->duration}";
+                DebugLog.Write("PROBE", $"Probe failed for \"{inputPath}\": {error}");
                 return null;
             }
 
+            DebugLog.Write("PROBE", $"Duration found: {duration:F3}s for \"{inputPath}\"");
             return duration;
         }
         catch (Exception ex)
         {
             error = $"[Ffmpeg.ProbeDuration] Исключение при анализе \"{inputPath}\": {ex.GetType().Name}: {ex.Message}";
+            DebugLog.Write("PROBE", $"Probe failed for \"{inputPath}\": {error}");
             return null;
         }
         finally
@@ -297,6 +310,7 @@ public static class Ffmpeg
         string outputPath,
         Action<double>? onProgress = null)
     {
+        DebugLog.Separator($"REMDIRECT: {inputPath} -> {outputPath}");
         Initialize();
 
         AVFormatContext* inCtx = null;
@@ -308,17 +322,30 @@ public static class Ffmpeg
         {
             var ret = ffmpeg.avformat_open_input(&inCtx, inputPath, null, null);
             if (ret < 0)
+            {
+                DebugLog.Write("ERROR", $"[FFMPEG-020] avformat_open_input \"{inputPath}\": {FfmpegErrorString(ret)}");
                 return (ret, $"[FFMPEG-020] avformat_open_input \"{inputPath}\": {FfmpegErrorString(ret)}");
+            }
 
             FixCodecIds(inCtx);
+            DebugLog.Write("STREAM", $"Input streams for \"{inputPath}\":");
+            for (var i = 0; i < inCtx->nb_streams; i++)
+                DebugLog.Write("STREAM", $"  {StreamDiagnostics(i, inCtx->streams[i])}");
             ret = ffmpeg.avformat_find_stream_info(inCtx, null);
             FixCodecIds(inCtx);
+            DebugLog.Write("CODEC", "FixCodecIds applied after avformat_find_stream_info");
             if (ret < 0)
+            {
+                DebugLog.Write("ERROR", $"[FFMPEG-021] avformat_find_stream_info \"{inputPath}\": {FfmpegErrorString(ret)}");
                 return (ret, $"[FFMPEG-021] avformat_find_stream_info \"{inputPath}\": {FfmpegErrorString(ret)}");
+            }
 
             ret = ffmpeg.avformat_alloc_output_context2(&outCtx, null, null, outputPath);
             if (ret < 0)
+            {
+                DebugLog.Write("ERROR", $"[FFMPEG-022] avformat_alloc_output_context2 \"{outputPath}\": {FfmpegErrorString(ret)}");
                 return (ret, $"[FFMPEG-022] avformat_alloc_output_context2 \"{outputPath}\": {FfmpegErrorString(ret)}");
+            }
 
             for (int i = 0; i < inCtx->nb_streams; i++)
             {
@@ -334,21 +361,29 @@ public static class Ffmpeg
 
                 if (needsTranscode)
                 {
+                    DebugLog.Write("CODEC", $"stream #{i} audio: needs transcode (incompatible codec for {outCtx->oformat->name})");
                     var decoder = ffmpeg.avcodec_find_decoder(inStream->codecpar->codec_id);
                     if (decoder == null)
                     {
                         var codecName = inStream->codecpar->codec_id.ToString();
+                        DebugLog.Write("ERROR", $"[FFMPEG-030] Decoder not found for codec {codecName} (stream {i}).");
                         return (-1, $"[FFMPEG-030] Decoder not found for codec {codecName} (stream {i}).");
                     }
 
                     var decCtx = ffmpeg.avcodec_alloc_context3(decoder);
                     if (decCtx == null)
+                    {
+                        DebugLog.Write("ERROR", $"[FFMPEG-031] Cannot alloc decoder context (stream {i}).");
                         return (-1, $"[FFMPEG-031] Cannot alloc decoder context (stream {i}).");
+                    }
 
                     ffmpeg.avcodec_parameters_to_context(decCtx, inStream->codecpar);
                     ret = ffmpeg.avcodec_open2(decCtx, decoder, null);
                     if (ret < 0)
+                    {
+                        DebugLog.Write("ERROR", $"[FFMPEG-032] avcodec_open2 decoder (stream {i}): {FfmpegErrorString(ret)}");
                         return (ret, $"[FFMPEG-032] avcodec_open2 decoder (stream {i}): {FfmpegErrorString(ret)}");
+                    }
 
                     var mp4FamilyOutput = outputPath.EndsWith(".mp4", StringComparison.OrdinalIgnoreCase)
                                           || outputPath.EndsWith(".m4v", StringComparison.OrdinalIgnoreCase)
@@ -377,11 +412,18 @@ public static class Ffmpeg
                     }
 
                     if (encoder == null)
+                    {
+                        DebugLog.Write("ERROR", $"[FFMPEG-033] No compatible audio encoder found (stream {i}).");
                         return (-1, $"[FFMPEG-033] No compatible audio encoder found (stream {i}).");
+                    }
 
+                    DebugLog.Write("CODEC", $"stream #{i}: decoder={decoder->name} ({decoder->id}), encoder={encoder->name} ({encoderCodecId})");
                     var encCtx = ffmpeg.avcodec_alloc_context3(encoder);
                     if (encCtx == null)
+                    {
+                        DebugLog.Write("ERROR", $"[FFMPEG-034] Cannot alloc encoder context (stream {i}).");
                         return (-1, $"[FFMPEG-034] Cannot alloc encoder context (stream {i}).");
+                    }
 
                     int sampleRate = decCtx->sample_rate;
                     if (sampleRate <= 0) sampleRate = 44100;
@@ -421,9 +463,17 @@ public static class Ffmpeg
                     encCtx->time_base = new AVRational { num = 1, den = encCtx->sample_rate };
                     encCtx->codec_id = encoderCodecId;
 
+                    // Global header required for container formats (MP4, MKV, MOV)
+                    encCtx->flags |= ffmpeg.AV_CODEC_FLAG_GLOBAL_HEADER;
+
+                    DebugLog.Write("ENCODE", $"encoder params (stream {i}): sample_fmt={encCtx->sample_fmt}, sample_rate={encCtx->sample_rate}, bit_rate={encCtx->bit_rate}, channels={encCtx->ch_layout.nb_channels}, frame_size={encCtx->frame_size}, GLOBAL_HEADER=1");
+
                     ret = ffmpeg.avcodec_open2(encCtx, encoder, null);
                     if (ret < 0)
+                    {
+                        DebugLog.Write("ERROR", $"[FFMPEG-035] avcodec_open2 encoder (stream {i}): {FfmpegErrorString(ret)}");
                         return (ret, $"[FFMPEG-035] avcodec_open2 encoder (stream {i}): {FfmpegErrorString(ret)}");
+                    }
 
                     SwrContext* swr = null;
                     bool needSwr = decCtx->sample_fmt != encCtx->sample_fmt
@@ -439,34 +489,52 @@ public static class Ffmpeg
                             &decCtx->ch_layout, decCtx->sample_fmt, decCtx->sample_rate,
                             0, null);
                         if (ret < 0 || swr == null)
+                        {
+                            DebugLog.Write("ERROR", $"[FFMPEG-036] swr_alloc_set_opts2 (stream {i}): {FfmpegErrorString(ret)}");
                             return (ret < 0 ? ret : -1, $"[FFMPEG-036] swr_alloc_set_opts2 (stream {i}): {FfmpegErrorString(ret)}");
+                        }
 
                         ret = ffmpeg.swr_init(swr);
                         if (ret < 0)
+                        {
+                            DebugLog.Write("ERROR", $"[FFMPEG-037] swr_init (stream {i}): {FfmpegErrorString(ret)}");
                             return (ret, $"[FFMPEG-037] swr_init (stream {i}): {FfmpegErrorString(ret)}");
+                        }
                     }
 
                     var outStream = ffmpeg.avformat_new_stream(outCtx, null);
                     if (outStream == null)
+                    {
+                        DebugLog.Write("ERROR", $"[FFMPEG-043] avformat_new_stream transcode (stream {i}): cannot create output stream.");
                         return (-1, $"[FFMPEG-043] avformat_new_stream transcode (stream {i}): cannot create output stream.");
+                    }
 
                     ret = ffmpeg.avcodec_parameters_from_context(outStream->codecpar, encCtx);
                     if (ret < 0)
+                    {
+                        DebugLog.Write("ERROR", $"[FFMPEG-038] avcodec_parameters_from_context (stream {i}): {FfmpegErrorString(ret)}");
                         return (ret, $"[FFMPEG-038] avcodec_parameters_from_context (stream {i}): {FfmpegErrorString(ret)}");
+                    }
 
                     outStream->codecpar->codec_tag = 0;
                     outStream->time_base = encCtx->time_base;
 
                     var decFrame = ffmpeg.av_frame_alloc();
                     if (decFrame == null)
+                    {
+                        DebugLog.Write("ERROR", $"[FFMPEG-039] av_frame_alloc decFrame (stream {i}): alloc failed.");
                         return (-1, $"[FFMPEG-039] av_frame_alloc decFrame (stream {i}): alloc failed.");
+                    }
 
                     AVFrame* encFrame = null;
                     if (needSwr)
                     {
                         encFrame = ffmpeg.av_frame_alloc();
                         if (encFrame == null)
+                        {
+                            DebugLog.Write("ERROR", $"[FFMPEG-040] av_frame_alloc encFrame (stream {i}): alloc failed.");
                             return (-1, $"[FFMPEG-040] av_frame_alloc encFrame (stream {i}): alloc failed.");
+                        }
 
                         encFrame->format = (int)encCtx->sample_fmt;
                         encFrame->sample_rate = encCtx->sample_rate;
@@ -474,12 +542,18 @@ public static class Ffmpeg
                         encFrame->nb_samples = encCtx->frame_size > 0 ? encCtx->frame_size : 1024;
                         ret = ffmpeg.av_frame_get_buffer(encFrame, 0);
                         if (ret < 0)
+                        {
+                            DebugLog.Write("ERROR", $"[FFMPEG-041] av_frame_get_buffer encFrame (stream {i}): {FfmpegErrorString(ret)}");
                             return (ret, $"[FFMPEG-041] av_frame_get_buffer encFrame (stream {i}): {FfmpegErrorString(ret)}");
+                        }
                     }
 
                     var encPkt = ffmpeg.av_packet_alloc();
                     if (encPkt == null)
+                    {
+                        DebugLog.Write("ERROR", $"[FFMPEG-042] av_packet_alloc encPkt (stream {i}): alloc failed.");
                         return (-1, $"[FFMPEG-042] av_packet_alloc encPkt (stream {i}): alloc failed.");
+                    }
 
                     transcodeStates.Add(new TranscodeState
                     {
@@ -496,9 +570,13 @@ public static class Ffmpeg
                 }
                 else
                 {
+                    DebugLog.Write("STREAM", $"stream #{i} {MediaTypeName(inStream->codecpar->codec_type)}: stream copy (compatible with {outCtx->oformat->name})");
                     var outStream = ffmpeg.avformat_new_stream(outCtx, null);
                     if (outStream == null)
+                    {
+                        DebugLog.Write("ERROR", $"[FFMPEG-023] avformat_new_stream (stream {i}, \"{inputPath}\"): cannot create output stream.");
                         return (-1, $"[FFMPEG-023] avformat_new_stream (stream {i}, \"{inputPath}\"): cannot create output stream.");
+                    }
 
                     ffmpeg.avcodec_parameters_copy(outStream->codecpar, inStream->codecpar);
                     outStream->codecpar->codec_tag = 0;
@@ -510,19 +588,30 @@ public static class Ffmpeg
             {
                 ret = ffmpeg.avio_open(&outCtx->pb, outputPath, ffmpeg.AVIO_FLAG_WRITE);
                 if (ret < 0)
+                {
+                    DebugLog.Write("ERROR", $"[FFMPEG-024] avio_open \"{outputPath}\": {FfmpegErrorString(ret)}");
                     return (ret, $"[FFMPEG-024] avio_open \"{outputPath}\": {FfmpegErrorString(ret)}");
+                }
             }
 
             ret = ffmpeg.avformat_write_header(outCtx, null);
             if (ret < 0)
+            {
+                DebugLog.Write("ERROR", $"avformat_write_header failed: {FfmpegErrorString(ret)}");
                 return (ret, BuildWriteHeaderError(ret, outputPath, inCtx, outCtx, transcodeStates));
+            }
 
+            DebugLog.Write("INIT", $"avformat_write_header success for \"{outputPath}\"");
             pkt = ffmpeg.av_packet_alloc();
             var totalDuration = inCtx->duration / (double)ffmpeg.AV_TIME_BASE;
             var lastPercent = -1.0;
+            long packetCount = 0;
 
             while (ffmpeg.av_read_frame(inCtx, pkt) >= 0)
             {
+                packetCount++;
+                if (packetCount % 100 == 0)
+                    DebugLog.Write("PACKET", $"processed {packetCount} packets...");
                 int inIdx = pkt->stream_index;
                 bool handled = false;
 
@@ -533,13 +622,19 @@ public static class Ffmpeg
                         continue;
 
                     ret = ffmpeg.avcodec_send_packet(ts.decCtx, pkt);
-                    if (ret < 0 && ret != ffmpeg.AVERROR_EOF)
+                    bool isEagain = ret == ffmpeg.AVERROR(ffmpeg.EAGAIN);
+                    if (isEagain)
+                    {
+                        DebugLog.Write("ENCODE", $"EAGAIN on stream #{ts.inStreamIdx}, draining decoder");
+                    }
+                    else if (ret < 0 && ret != ffmpeg.AVERROR_EOF)
                     {
                         ffmpeg.av_packet_unref(pkt);
                         handled = true;
                         break;
                     }
 
+                PROCESS_FRAMES:
                     while (ffmpeg.avcodec_receive_frame(ts.decCtx, ts.decFrame) >= 0)
                     {
                         var inStreamRef = inCtx->streams[inIdx];
@@ -586,6 +681,19 @@ public static class Ffmpeg
                         ffmpeg.av_frame_unref(ts.decFrame);
                         if (ts.swrCtx != null)
                             ffmpeg.av_frame_unref(ts.encFrame);
+                    }
+
+                    if (isEagain)
+                    {
+                        isEagain = false;
+                        ret = ffmpeg.avcodec_send_packet(ts.decCtx, pkt);
+                        if (ret < 0 && ret != ffmpeg.AVERROR_EOF)
+                        {
+                            ffmpeg.av_packet_unref(pkt);
+                            handled = true;
+                            break;
+                        }
+                        goto PROCESS_FRAMES;
                     }
 
                     ffmpeg.av_packet_unref(pkt);
@@ -641,6 +749,7 @@ public static class Ffmpeg
             for (int ti = 0; ti < transcodeStates.Count; ti++)
             {
                 var ts = transcodeStates[ti];
+                DebugLog.Write("ENCODE", $"decoder flush start (stream #{ts.inStreamIdx})");
                 ffmpeg.avcodec_send_packet(ts.decCtx, null);
                 while (ffmpeg.avcodec_receive_frame(ts.decCtx, ts.decFrame) >= 0)
                 {
@@ -688,7 +797,10 @@ public static class Ffmpeg
                         ffmpeg.av_frame_unref(ts.encFrame);
                 }
 
+                DebugLog.Write("ENCODE", $"decoder flush complete (stream #{ts.inStreamIdx})");
+
                 // Flush encoder
+                DebugLog.Write("ENCODE", $"encoder flush start (stream #{ts.inStreamIdx})");
                 ffmpeg.avcodec_send_frame(ts.encCtx, null);
                 while (ffmpeg.avcodec_receive_packet(ts.encCtx, ts.encPkt) >= 0)
                 {
@@ -707,6 +819,7 @@ public static class Ffmpeg
                     ffmpeg.av_interleaved_write_frame(outCtx, ts.encPkt);
                     ffmpeg.av_packet_unref(ts.encPkt);
                 }
+                DebugLog.Write("ENCODE", $"encoder flush complete (stream #{ts.inStreamIdx})");
             }
 
             if (onProgress != null && totalDuration > 0 && lastPercent < 99.9)
@@ -714,20 +827,27 @@ public static class Ffmpeg
 
             ret = ffmpeg.av_write_trailer(outCtx);
             if (ret < 0)
+            {
+                DebugLog.Write("ERROR", $"[FFMPEG-026] av_write_trailer \"{outputPath}\": {FfmpegErrorString(ret)}");
                 return (ret, $"[FFMPEG-026] av_write_trailer \"{outputPath}\": {FfmpegErrorString(ret)}");
+            }
 
+            DebugLog.Write("INIT", $"av_write_trailer success for \"{outputPath}\"");
             return (0, string.Empty);
         }
         catch (FfmpegException ex)
         {
+            DebugLog.Write("ERROR", $"[FFMPEG-027] FFmpeg error processing \"{inputPath}\": {ex.Message}");
             return (-1, $"[FFMPEG-027] FFmpeg error processing \"{inputPath}\": {ex.Message}");
         }
         catch (Exception ex)
         {
+            DebugLog.Write("ERROR", $"[FFMPEG-028] Exception ({ex.GetType().Name}) processing \"{inputPath}\": {ex.Message}");
             return (-1, $"[FFMPEG-028] Exception ({ex.GetType().Name}) processing \"{inputPath}\": {ex.Message}");
         }
         finally
         {
+            DebugLog.Write("CLEANUP", "freeing resources...");
             for (int ti = 0; ti < transcodeStates.Count; ti++)
             {
                 var ts = transcodeStates[ti];
@@ -751,6 +871,7 @@ public static class Ffmpeg
                     ffmpeg.avio_closep(&outCtx->pb);
                 ffmpeg.avformat_free_context(outCtx);
             }
+            DebugLog.Separator("REMDIRECT COMPLETE");
         }
     }
 }

@@ -2,11 +2,17 @@ namespace DashcamConverter;
 
 static class Program
 {
-    public const string Version = "1.0.4";
+    public const string Version = "1.0.5";
 
     [STAThread]
     static void Main(string[] args)
     {
+        if (Array.Exists(args, a => a.Equals("/debug", StringComparison.OrdinalIgnoreCase)))
+        {
+            DebugLog.Enabled = true;
+            args = Array.FindAll(args, a => !a.Equals("/debug", StringComparison.OrdinalIgnoreCase));
+        }
+
         if (args.Length == 0)
         {
             ApplicationConfiguration.Initialize();
@@ -48,7 +54,7 @@ static class Program
         }
         else
         {
-            Console.WriteLine("DashcamConverter remux <input> [-o output] [--mkv]");
+            Console.WriteLine("DashcamConverter remux <input> [-o output] [--mkv] [/debug]");
             Console.WriteLine("DashcamConverter --version");
         }
     }
