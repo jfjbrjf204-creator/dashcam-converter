@@ -559,7 +559,9 @@ public class MainForm : Form
                                 {
                                     if (!token.IsCancellationRequested)
                                     {
-                                        var pct = Math.Min((int)p, 100);
+                                        var pct = double.IsFinite(p)
+                                            ? Math.Clamp((int)Math.Round(p), _progressBar.Minimum, _progressBar.Maximum)
+                                            : _progressBar.Minimum;
                                         _progressBar.Value = pct;
                                         _progressPercentLabel.Text = $"{pct}%";
                                     }
