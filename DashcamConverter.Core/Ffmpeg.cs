@@ -658,12 +658,14 @@ public static class Ffmpeg
                         AVFrame* frameToSend;
                         if (ts.swrCtx != null)
                         {
-                            ret = ffmpeg.swr_convert_frame(ts.swrCtx, ts.encFrame, ts.decFrame);
+                            ret = ffmpeg.swr_convert(ts.swrCtx, ts.encFrame->extended_data, ts.encFrame->nb_samples,
+                                                           ts.decFrame->extended_data, ts.decFrame->nb_samples);
                             if (ret < 0)
                             {
-                                DebugLog.Write("ENCODE", $"swr_convert_frame error (stream #{inIdx}): ret={ret}");
+                                DebugLog.Write("ENCODE", $"swr_convert error (stream #{inIdx}): ret={ret}");
                                 break;
                             }
+                            ts.encFrame->nb_samples = ret;
                             ts.encFrame->pts = ts.decFrame->pts;
                             frameToSend = ts.encFrame;
                         }
@@ -790,20 +792,22 @@ public static class Ffmpeg
                     ts.decFrame->pts = ffmpeg.av_rescale_q(
                         ts.decFrame->pts, inStreamRef->time_base, ts.encCtx->time_base);
 
-                    AVFrame* frameToSend;
+                    AVFrame* frameToSend2;
                     if (ts.swrCtx != null)
                     {
-                        ret = ffmpeg.swr_convert_frame(ts.swrCtx, ts.encFrame, ts.decFrame);
+                        ret = ffmpeg.swr_convert(ts.swrCtx, ts.encFrame->extended_data, ts.encFrame->nb_samples,
+                                                       ts.decFrame->extended_data, ts.decFrame->nb_samples);
                         if (ret < 0) break;
+                        ts.encFrame->nb_samples = ret;
                         ts.encFrame->pts = ts.decFrame->pts;
-                        frameToSend = ts.encFrame;
+                        frameToSend2 = ts.encFrame;
                     }
                     else
                     {
-                        frameToSend = ts.decFrame;
+                        frameToSend2 = ts.decFrame;
                     }
 
-                    ffmpeg.avcodec_send_frame(ts.encCtx, frameToSend);
+                    ffmpeg.avcodec_send_frame(ts.encCtx, frameToSend2);
                     while (ffmpeg.avcodec_receive_packet(ts.encCtx, ts.encPkt) >= 0)
                     {
                         ts.encPkt->stream_index = ts.outStreamIdx;
