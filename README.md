@@ -144,7 +144,9 @@ Workflow `.github/workflows/ci.yml` на `windows-latest`:
 
 ## Лицензия
 
-MIT
+GNU General Public License v3.0 (GPL-3.0) — проект использует GPL-сборки FFmpeg shared DLL.
+
+Полный текст лицензии — в файле [LICENSE](LICENSE).
 
 ---
 
