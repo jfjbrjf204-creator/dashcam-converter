@@ -28,6 +28,16 @@ public static class Ffmpeg
         if (_initialized)
             return;
 
+        // CI override: use pre-downloaded DLLs instead of embedded resources
+        var envPath = Environment.GetEnvironmentVariable("DASHCAM_FFMPEG_PATH");
+        if (!string.IsNullOrEmpty(envPath) && Directory.Exists(envPath))
+        {
+            _dllDir = envPath;
+            ffmpeg.RootPath = _dllDir;
+            _initialized = true;
+            return;
+        }
+
         _dllDir = Path.Combine(Path.GetTempPath(), "DashcamConverter", "ffmpeg");
         Directory.CreateDirectory(_dllDir);
 

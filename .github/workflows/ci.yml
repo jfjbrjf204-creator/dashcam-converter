@@ -32,6 +32,8 @@ jobs:
           Copy-Item "$($ffmpegDir.Name)/bin/avutil-*.dll" DashcamConverter/ffmpeg/
           Copy-Item "$($ffmpegDir.Name)/bin/swresample-*.dll" DashcamConverter/ffmpeg/
           Copy-Item "$($ffmpegDir.Name)/bin/swscale-*.dll" DashcamConverter/ffmpeg/
+          # Export for CI tests — use downloaded DLLs directly
+          "DASHCAM_FFMPEG_PATH=$((Get-Location).Path)/$($ffmpegDir.Name)/bin" >> $env:GITHUB_ENV
 
       - name: Generate test fixture
         shell: pwsh
