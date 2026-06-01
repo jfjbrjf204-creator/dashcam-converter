@@ -101,6 +101,44 @@ public class ConverterTests
     }
 
     [Fact]
+    public void ConversionException_StoresMessageAndStderr()
+    {
+        const string code = "CORE-CONV-001";
+        const string msg = "Ошибка конвертации test.ts: [Ffmpeg.RemuxDirect] не удалось открыть файл";
+        const string stderr = "[Ffmpeg.RemuxDirect] не удалось открыть файл";
+
+        var ex = new ConversionException(code, msg, stderr);
+
+        Assert.Equal(code, ex.ErrorCode);
+        Assert.Equal($"[{code}] {msg}", ex.Message);
+        Assert.Equal(stderr, ex.Stderr);
+    }
+
+    [Fact]
+    public void ConversionException_DefaultStderr_IsEmpty()
+    {
+        var ex = new ConversionException("CORE-CONV-001", "сообщение");
+
+        Assert.Equal("[CORE-CONV-001] сообщение", ex.Message);
+        Assert.Equal("", ex.Stderr);
+    }
+
+    [Fact]
+    public void ConversionException_MessageContainsFilenameAndDetail()
+    {
+        var ex = new ConversionException(
+            "CORE-CONV-001",
+            "Ошибка конвертации video.ts: [Ffmpeg.RemuxDirect] avformat_open_input: код ошибки -2",
+            "[Ffmpeg.RemuxDirect] avformat_open_input: код ошибки -2"
+        );
+
+        Assert.StartsWith("[CORE-CONV-001]", ex.Message);
+        Assert.Contains("video.ts", ex.Message);
+        Assert.Contains("код ошибки -2", ex.Message);
+        Assert.Contains("[Ffmpeg.RemuxDirect]", ex.Message);
+    }
+
+    [Fact]
     public void Remux_NonexistentFile_ThrowsFileNotFoundException()
     {
         if (!IsWindows)

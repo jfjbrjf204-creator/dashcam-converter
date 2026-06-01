@@ -2,10 +2,13 @@ namespace DashcamConverter;
 
 public class ConversionException : Exception
 {
+    public string ErrorCode { get; }
     public string Stderr { get; }
 
-    public ConversionException(string message, string stderr = "") : base(message)
+    public ConversionException(string errorCode, string message, string stderr = "")
+        : base($"[{errorCode}] {message}")
     {
+        ErrorCode = errorCode;
         Stderr = stderr;
     }
 }
@@ -25,7 +28,7 @@ public static class Converter
         Action<double>? onProgress = null)
     {
         if (!File.Exists(inputPath))
-            throw new FileNotFoundException($"Файл не найден: {inputPath}");
+            throw new FileNotFoundException($"[CORE-VAL-001] Файл не найден: {inputPath}");
 
         outputPath ??= Path.ChangeExtension(inputPath, ".mp4");
 
@@ -33,7 +36,8 @@ public static class Converter
 
         if (exitCode != 0)
             throw new ConversionException(
-                $"Ошибка конвертации {Path.GetFileName(inputPath)}",
+                "CORE-CONV-001",
+                $"Ошибка конвертации {Path.GetFileName(inputPath)}: {error}",
                 error
             );
 

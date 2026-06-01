@@ -35,6 +35,11 @@ static class Program
                     Console.Write($"\rКонвертация: {p:F0}%"));
                 Console.WriteLine($"\nГотово: {result}");
             }
+            catch (ConversionException ex)
+            {
+                Console.Error.WriteLine(ex.Message);
+                Environment.Exit(1);
+            }
             catch (Exception ex)
             {
                 Console.Error.WriteLine($"Ошибка: {ex.Message}");

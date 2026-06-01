@@ -572,7 +572,7 @@ public class MainForm : Form
                     catch (ConversionException ex)
                     {
                         BeginInvoke(() => MessageBox.Show(
-                            $"Ошибка конвертации {fileName}:\n{ex.Message}",
+                            ex.Message,
                             "Ошибка",
                             MessageBoxButtons.OK,
                             MessageBoxIcon.Error
