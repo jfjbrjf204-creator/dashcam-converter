@@ -77,15 +77,15 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          $tag = "v1.0.2"
-          $title = "Dashcam Converter v1.0.2"
+          $tag = "v1.0.3"
+          $title = "Dashcam Converter v1.0.3"
           $notes = @"
           Windows x64 self-contained build.
 
           ## Изменения
 
-          - Расширены сообщения об ошибках: диалог теперь показывает конкретную причину сбоя FFmpeg вместо дублирующегося общего текста.
-          - Добавлены коды ошибок `CORE-CONV-001` и `CORE-VAL-001` для диагностики.
+          - Автоматическая перекодировка несовместимого аудио (ADPCM → MP3) при remux в MP4.
+          - Расширены сообщения об ошибках с кодами FFmpeg и CORE для диагностики.
 
           Download `DashcamConverter-win-x64.zip`, unpack it, and run `DashcamConverter.exe`.
           "@
