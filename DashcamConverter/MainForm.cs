@@ -1,18 +1,15 @@
 namespace DashcamConverter;
 
-/// <summary>
-/// Главное окно приложения Dashcam Converter.
-/// </summary>
 public class MainForm : Form
 {
-    private readonly ListBox _fileListBox;
-    private readonly TextBox _outputDirTextBox;
-    private readonly ProgressBar _progressBar;
-    private readonly Label _statusLabel;
-    private readonly Button _convertButton;
-    private readonly Button _addButton;
-    private readonly Button _clearButton;
-    private readonly Button _browseButton;
+    private ListBox _fileListBox = null!;
+    private TextBox _outputDirTextBox = null!;
+    private ProgressBar _progressBar = null!;
+    private Label _statusLabel = null!;
+    private Button _convertButton = null!;
+    private Button _addButton = null!;
+    private Button _clearButton = null!;
+    private Button _browseButton = null!;
 
     private CancellationTokenSource? _cts;
     private bool _isConverting;
@@ -20,8 +17,8 @@ public class MainForm : Form
     public MainForm()
     {
         Text = "Dashcam Converter v1.0";
-        Size = new Size(680, 470);
-        MinimumSize = new Size(620, 420);
+        Size = new Size(660, 480);
+        MinimumSize = new Size(560, 420);
         StartPosition = FormStartPosition.CenterScreen;
         Font = new Font("Segoe UI", 10);
 
@@ -29,33 +26,131 @@ public class MainForm : Form
         {
             Dock = DockStyle.Fill,
             ColumnCount = 1,
-            RowCount = 3,
-            Padding = new Padding(12),
+            RowCount = 4,
+            Padding = new Padding(14, 14, 14, 10),
         };
-        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 68));
         root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 82));
+        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 60));
+        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 52));
+        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 24));
         Controls.Add(root);
 
-        // --- 1. Папка сохранения ---
-        var saveGroup = new GroupBox
-        {
-            Text = "1. Папка сохранения",
-            Dock = DockStyle.Fill,
-            Padding = new Padding(10),
-        };
-        root.Controls.Add(saveGroup, 0, 0);
+        BuildFileSection(root);
+        BuildOutputSection(root);
+        BuildProgressSection(root);
+        BuildContactSection(root);
 
-        var saveLayout = new TableLayoutPanel
+        Load += OnFormLoad;
+        UpdateActionState();
+    }
+
+    private void BuildFileSection(TableLayoutPanel root)
+    {
+        var panel = new TableLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            ColumnCount = 1,
+            RowCount = 3,
+            Margin = Padding.Empty,
+        };
+        panel.RowStyles.Add(new RowStyle(SizeType.Absolute, 24));
+        panel.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        panel.RowStyles.Add(new RowStyle(SizeType.Absolute, 36));
+        root.Controls.Add(panel, 0, 0);
+
+        var header = new Label
+        {
+            Text = "Исходные видеофайлы",
+            Dock = DockStyle.Fill,
+            Font = new Font(Font, FontStyle.Bold),
+            TextAlign = ContentAlignment.MiddleLeft,
+        };
+        panel.Controls.Add(header, 0, 0);
+
+        _fileListBox = new ListBox
+        {
+            Dock = DockStyle.Fill,
+            IntegralHeight = false,
+            Margin = new Padding(0, 4, 0, 0),
+        };
+        panel.Controls.Add(_fileListBox, 0, 1);
+
+        var btnRow = new TableLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            ColumnCount = 4,
+            RowCount = 1,
+            Margin = new Padding(0, 6, 0, 0),
+        };
+        btnRow.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+        btnRow.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+        btnRow.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        btnRow.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+        panel.Controls.Add(btnRow, 0, 2);
+
+        _addButton = new Button
+        {
+            Text = "+ Добавить файлы",
+            Width = 148,
+            Height = 30,
+        };
+        _addButton.Click += OnAddFiles;
+        btnRow.Controls.Add(_addButton, 0, 0);
+
+        _clearButton = new Button
+        {
+            Text = "Очистить список",
+            Width = 130,
+            Height = 30,
+            Margin = new Padding(6, 0, 0, 0),
+        };
+        _clearButton.Click += (_, _) => ClearFiles();
+        btnRow.Controls.Add(_clearButton, 1, 0);
+
+        _convertButton = new Button
+        {
+            Text = "▶ Старт конвертации",
+            Height = 30,
+            Width = 194,
+            Enabled = false,
+            Font = new Font(Font, FontStyle.Bold),
+        };
+        _convertButton.Click += OnConvert;
+        btnRow.Controls.Add(_convertButton, 3, 0);
+    }
+
+    private void BuildOutputSection(TableLayoutPanel root)
+    {
+        var panel = new TableLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            ColumnCount = 1,
+            RowCount = 2,
+            Margin = new Padding(0, 10, 0, 0),
+        };
+        panel.RowStyles.Add(new RowStyle(SizeType.Absolute, 22));
+        panel.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        root.Controls.Add(panel, 0, 1);
+
+        var header = new Label
+        {
+            Text = "Папка для результатов",
+            Dock = DockStyle.Fill,
+            Font = new Font(Font, FontStyle.Bold),
+            TextAlign = ContentAlignment.MiddleLeft,
+        };
+        panel.Controls.Add(header, 0, 0);
+
+        var row = new TableLayoutPanel
         {
             Dock = DockStyle.Fill,
             ColumnCount = 2,
             RowCount = 1,
-            Padding = new Padding(0, 4, 0, 0),
+            Margin = new Padding(0, 4, 0, 0),
         };
-        saveLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-        saveLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 95));
-        saveGroup.Controls.Add(saveLayout);
+        row.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        row.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 90));
+        panel.Controls.Add(row, 0, 1);
 
         _outputDirTextBox = new TextBox
         {
@@ -63,104 +158,30 @@ public class MainForm : Form
             Text = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
         };
         _outputDirTextBox.TextChanged += (_, _) => UpdateActionState();
-        saveLayout.Controls.Add(_outputDirTextBox, 0, 0);
+        row.Controls.Add(_outputDirTextBox, 0, 0);
 
         _browseButton = new Button
         {
             Text = "Обзор…",
             Dock = DockStyle.Fill,
+            Margin = new Padding(6, 0, 0, 0),
         };
         _browseButton.Click += OnBrowseOutput;
-        saveLayout.Controls.Add(_browseButton, 1, 0);
+        row.Controls.Add(_browseButton, 1, 0);
+    }
 
-        // --- 2. Исходные видеофайлы ---
-        var filesGroup = new GroupBox
-        {
-            Text = "2. Исходные видеофайлы",
-            Dock = DockStyle.Fill,
-            Padding = new Padding(10),
-        };
-        root.Controls.Add(filesGroup, 0, 1);
-
-        var filesLayout = new TableLayoutPanel
+    private void BuildProgressSection(TableLayoutPanel root)
+    {
+        var panel = new TableLayoutPanel
         {
             Dock = DockStyle.Fill,
             ColumnCount = 1,
             RowCount = 2,
+            Margin = new Padding(0, 10, 0, 0),
         };
-        filesLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-        filesLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 40));
-        filesGroup.Controls.Add(filesLayout);
-
-        _fileListBox = new ListBox
-        {
-            Dock = DockStyle.Fill,
-            IntegralHeight = false,
-        };
-        filesLayout.Controls.Add(_fileListBox, 0, 0);
-
-        var filesButtonPanel = new TableLayoutPanel
-        {
-            Dock = DockStyle.Fill,
-            ColumnCount = 4,
-            RowCount = 1,
-            Padding = new Padding(0, 5, 0, 0),
-        };
-        filesButtonPanel.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
-        filesButtonPanel.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
-        filesButtonPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-        filesButtonPanel.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
-        filesLayout.Controls.Add(filesButtonPanel, 0, 1);
-
-        _addButton = new Button
-        {
-            Text = "+ Добавить файлы",
-            Width = 150,
-            Height = 30,
-        };
-        _addButton.Click += OnAddFiles;
-        filesButtonPanel.Controls.Add(_addButton, 0, 0);
-
-        _clearButton = new Button
-        {
-            Text = "Очистить",
-            Width = 100,
-            Height = 30,
-        };
-        _clearButton.Click += (_, _) => ClearFiles();
-        filesButtonPanel.Controls.Add(_clearButton, 1, 0);
-
-        // spacer column (2) is percent 100 — nothing to add
-
-        _convertButton = new Button
-        {
-            Text = "▶ Старт конвертации",
-            Height = 30,
-            Width = 190,
-            Enabled = false,
-            Font = new Font(Font, FontStyle.Bold),
-        };
-        _convertButton.Click += OnConvert;
-        filesButtonPanel.Controls.Add(_convertButton, 3, 0);
-
-        // --- Прогресс ---
-        var progressGroup = new GroupBox
-        {
-            Text = "Прогресс",
-            Dock = DockStyle.Fill,
-            Padding = new Padding(10),
-        };
-        root.Controls.Add(progressGroup, 0, 2);
-
-        var progressLayout = new TableLayoutPanel
-        {
-            Dock = DockStyle.Fill,
-            ColumnCount = 1,
-            RowCount = 2,
-        };
-        progressLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 28));
-        progressLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-        progressGroup.Controls.Add(progressLayout);
+        panel.RowStyles.Add(new RowStyle(SizeType.Absolute, 24));
+        panel.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        root.Controls.Add(panel, 0, 2);
 
         _progressBar = new ProgressBar
         {
@@ -168,18 +189,71 @@ public class MainForm : Form
             Maximum = 100,
             Style = ProgressBarStyle.Continuous,
         };
-        progressLayout.Controls.Add(_progressBar, 0, 0);
+        panel.Controls.Add(_progressBar, 0, 0);
 
         _statusLabel = new Label
         {
             Text = "Добавьте файлы для конвертации.",
             Dock = DockStyle.Fill,
             TextAlign = ContentAlignment.MiddleLeft,
+            ForeColor = Color.Gray,
+            Margin = new Padding(0, 2, 0, 0),
         };
-        progressLayout.Controls.Add(_statusLabel, 0, 1);
+        panel.Controls.Add(_statusLabel, 0, 1);
+    }
 
-        Load += OnFormLoad;
-        UpdateActionState();
+    private void BuildContactSection(TableLayoutPanel root)
+    {
+        var panel = new TableLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            ColumnCount = 3,
+            RowCount = 1,
+            Margin = new Padding(0, 8, 0, 0),
+        };
+        panel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        panel.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+        panel.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+        root.Controls.Add(panel, 0, 3);
+
+        var tgLabel = new LinkLabel
+        {
+            Text = "Telegram: @HUU4AB0",
+            AutoSize = true,
+            LinkColor = Color.DodgerBlue,
+            ActiveLinkColor = Color.RoyalBlue,
+            Margin = new Padding(0, 0, 16, 0),
+        };
+        tgLabel.Links.Add(0, tgLabel.Text.Length, "https://t.me/HUU4AB0");
+        tgLabel.LinkClicked += (_, e) =>
+        {
+            var url = e.Link?.LinkData as string;
+            if (url != null)
+            {
+                try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(url) { UseShellExecute = true }); }
+                catch { }
+            }
+        };
+        panel.Controls.Add(tgLabel, 1, 0);
+
+        var ghLabel = new LinkLabel
+        {
+            Text = "GitHub",
+            AutoSize = true,
+            LinkColor = Color.DodgerBlue,
+            ActiveLinkColor = Color.RoyalBlue,
+        };
+        ghLabel.Links.Add(0, ghLabel.Text.Length, "https://github.com/jfjbrjf204-creator/dashcam-converter");
+        ghLabel.LinkClicked += (_, e) =>
+        {
+            var url = e.Link?.LinkData as string;
+            if (url != null)
+            {
+                try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(url) { UseShellExecute = true }); }
+                catch { }
+            }
+        };
+        panel.Controls.Add(ghLabel, 2, 0);
     }
 
     private void OnFormLoad(object? sender, EventArgs e)
@@ -219,7 +293,6 @@ public class MainForm : Form
                 _fileListBox.Items.Add(path);
         }
 
-        // Папка сохранения по умолчанию — из первого файла, если пользователь её не выбрал.
         if (string.IsNullOrWhiteSpace(_outputDirTextBox.Text) && dialog.FileNames.Length > 0)
             _outputDirTextBox.Text = Path.GetDirectoryName(dialog.FileNames[0]) ?? "";
 
