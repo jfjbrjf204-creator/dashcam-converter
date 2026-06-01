@@ -17,25 +17,27 @@ jobs:
         with:
           dotnet-version: '8.0.x'
 
-      - name: Install ffmpeg (choco)
+      - name: Download FFmpeg
         shell: pwsh
         run: |
-          choco install ffmpeg -y --no-progress
-          # Verify
-          ffmpeg -version
-          # Copy DLLs for publish embed
-          $ffmpegBin = (Get-Command ffmpeg).Source | Split-Path
+          $url = "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl-shared.zip"
+          Invoke-WebRequest -Uri $url -OutFile ffmpeg.zip
+          Expand-Archive ffmpeg.zip -DestinationPath .
+          $d = Get-ChildItem -Directory -Filter "ffmpeg-*" | Select-Object -First 1
+          # For publish embed
           New-Item -ItemType Directory -Force -Path DashcamConverter/ffmpeg
-          Copy-Item "$ffmpegBin\avcodec-*.dll" DashcamConverter/ffmpeg/ -ErrorAction SilentlyContinue
-          Copy-Item "$ffmpegBin\avformat-*.dll" DashcamConverter/ffmpeg/ -ErrorAction SilentlyContinue
-          Copy-Item "$ffmpegBin\avutil-*.dll" DashcamConverter/ffmpeg/ -ErrorAction SilentlyContinue
-          Copy-Item "$ffmpegBin\swresample-*.dll" DashcamConverter/ffmpeg/ -ErrorAction SilentlyContinue
-          Copy-Item "$ffmpegBin\swscale-*.dll" DashcamConverter/ffmpeg/ -ErrorAction SilentlyContinue
+          Copy-Item "$($d.Name)\bin\*.dll" DashcamConverter/ffmpeg/
+          # For CI tests: save the bin path
+          (Resolve-Path "$($d.Name)\bin").Path | Out-File -NoNewline ffmpeg_bin_path.txt
+          Write-Host "FFmpeg bin: $(Get-Content ffmpeg_bin_path.txt)"
 
       - name: Create test fixture
+        shell: pwsh
         run: |
-          New-Item -ItemType Directory -Force -Path tests\fixtures
-          ffmpeg -y -f lavfi -i "testsrc=duration=3:size=320x240:rate=25" -c:v libx264 -pix_fmt yuv420p -f mpegts tests\fixtures\test.ts
+          $d = Get-ChildItem -Directory -Filter "ffmpeg-*" | Select-Object -First 1
+          New-Item -ItemType Directory -Force -Path tests/fixtures
+          & "$($d.Name)\bin\ffmpeg.exe" -y -f lavfi -i "testsrc=duration=3:size=320x240:rate=25" -c:v libx264 -pix_fmt yuv420p -f mpegts tests/fixtures/test.ts
+          Write-Host "Fixture: $((Get-Item tests/fixtures/test.ts).Length) bytes"
 
       - name: Restore
         run: dotnet restore
@@ -44,4 +46,11 @@ jobs:
         run: dotnet build --no-restore -c Release
 
       - name: Test
-        run: dotnet test --no-build -c Release --verbosity normal
+        shell: pwsh
+        run: |
+          $bin = Get-Content ffmpeg_bin_path.txt
+          $env:DASHCAM_FFMPEG_PATH = $bin
+          # Also add to PATH for NativeLibrary fallback
+          $env:PATH = "$bin;$env:PATH"
+          Write-Host "Testing with FFmpeg at: $bin"
+          dotnet test --no-build -c Release --verbosity normal
