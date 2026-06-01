@@ -1,116 +1,117 @@
-# Dashcam Converter — Архитектура
+# Dashcam Converter — архитектура
 
-> Принципы: **DRY, SSOT, SOLID**. Разработка через OpenCode на «звёздной».
+Текущая версия — C#/.NET 8 Windows-приложение с WinForms UI и core-библиотекой для remux через FFmpeg C API.
 
 ## Технический стек
 
-- **Язык:** Python 3.11+ (встроен в PyInstaller .exe)
-- **GUI:** tkinter (встроен в Python, не требует внешних библиотек)
-- **Видео:** FFmpeg (subprocess, бинарник встроен в .exe)
-- **Сборка:** PyInstaller → один .exe файл
-- **Тесты:** pytest
+- **Язык:** C# / .NET 8
+- **GUI:** Windows Forms (`net8.0-windows`)
+- **Core:** `.NET 8` class library
+- **FFmpeg:** shared DLL + `FFmpeg.AutoGen` P/Invoke
+- **Тесты:** xUnit
+- **CI:** GitHub Actions `windows-latest`
+- **Поставка:** self-contained Windows x64 zip в GitHub Releases
 
-## Структура проекта
+## Структура
 
-```
-dashcam-converter/
-├── src/
-│   ├── __init__.py
-│   ├── main.py          # Точка входа: парсинг аргументов → выбор режима
-│   ├── converter.py     # Бизнес-логика: remux-операции
-│   ├── ffmpeg.py        # SSOT для вызовов FFmpeg (единственное место!)
-│   └── gui.py           # tkinter GUI
-├── tests/
-│   ├── __init__.py
-│   ├── test_converter.py
-│   └── test_ffmpeg.py
-├── ffmpeg/              # Бинарник ffmpeg.exe (встраивается в сборку)
-├── README.md
-├── ARCHITECTURE.md      # Этот файл
-├── requirements.txt
-├── build.bat            # Сборка .exe
-└── .gitignore
-```
-
-## SOLID
-
-### S — Single Responsibility
-- `ffmpeg.py` — только запуск и управление процессом FFmpeg
-- `converter.py` — только логика конвертации (какие аргументы передать)
-- `gui.py` — только GUI
-- `main.py` — только точка входа и роутинг
-
-### O — Open/Closed
-- Новые операции конвертации добавляются через новые функции в `converter.py`, не трогая `ffmpeg.py`
-- Новые форматы вывода — через параметризацию, не через if/else
-
-### L — Liskov Substitution
-- Не применимо явно (нет наследования в v1)
-
-### I — Interface Segregation
-- CLI-клиент не зависит от tkinter (main.py импортирует gui только при `--gui`)
-- GUI не знает о CLI-аргументах
-
-### D — Dependency Inversion
-- `converter.py` зависит от абстракции (интерфейс `ffmpeg.run()`), не от конкретного пути к бинарнику
-
-## DRY
-
-Единственная функция, запускающая FFmpeg — `ffmpeg.run(args, progress_callback)`.
-Все операции (remux, будущие overlay, concat) используют только её.
-
-```python
-# ffmpeg.py — SSOT для всех вызовов FFmpeg
-def run(args: list[str], on_progress=None) -> tuple[int, str]:
-    """Запустить FFmpeg, вернуть (returncode, stderr).
-    on_progress(percent: float) — опциональный callback."""
-    ...
+```text
+DashcamConverter.sln
+├── DashcamConverter/
+│   ├── DashcamConverter.csproj     # WinForms app, net8.0-windows, win-x64
+│   ├── Program.cs                  # CLI/GUI entrypoint
+│   ├── MainForm.cs                 # WinForms UI
+│   └── ffmpeg/                     # FFmpeg DLL copied before build/publish
+├── DashcamConverter.Core/
+│   ├── DashcamConverter.Core.csproj# net8.0, unsafe enabled, FFmpeg.AutoGen
+│   ├── Ffmpeg.cs                   # FFmpeg C API wrapper
+│   └── Converter.cs                # Public conversion facade
+├── DashcamConverter.Tests/
+│   ├── FfmpegTests.cs              # FFmpeg wrapper tests
+│   └── ConverterTests.cs           # Converter facade tests
+├── .github/workflows/ci.yml        # Build/test/package/release
+└── build.bat                       # Local Windows build script
 ```
 
-## SSOT (Single Source of Truth)
+## Компоненты
 
-| Данные | Источник |
-|---|---|
-| Путь к ffmpeg.exe | `ffmpeg.py` → `_find_ffmpeg()` |
-| Формат выходного файла | `converter.py` → константа `OUTPUT_EXT = ".mp4"` |
-| Версия приложения | `main.py` → `__version__` |
-| Настройки GUI (размеры, шрифты) | `gui.py` → `UIConfig` |
+### `DashcamConverter`
+
+Windows-приложение:
+
+- без аргументов запускает WinForms GUI;
+- `remux <input> [-o output] [--mkv]` запускает CLI-конвертацию;
+- `--version` печатает версию.
+
+### `DashcamConverter.Core`
+
+Core-библиотека:
+
+- `Converter.ValidateInput(path)` — проверяет существование файла и возможность открыть его через FFmpeg;
+- `Converter.Remux(input, output, onProgress)` — фасад для remux;
+- `Ffmpeg.Initialize()` — настраивает путь к FFmpeg DLL;
+- `Ffmpeg.ProbeDuration(path)` — читает длительность через FFmpeg C API;
+- `Ffmpeg.RemuxDirect(...)` — перепаковывает контейнер без перекодирования.
+
+### `DashcamConverter.Tests`
+
+xUnit-тесты создают/используют тестовую TS-фикстуру и проверяют:
+
+- probe длительности;
+- remux в выходной файл;
+- progress callback;
+- обработку отсутствующих файлов.
+
+## FFmpeg loading
+
+Порядок инициализации в `Ffmpeg.Initialize()`:
+
+1. Если задана переменная `DASHCAM_FFMPEG_PATH`, используется этот каталог DLL. Это нужно для CI-тестов.
+2. Иначе embedded DLL извлекаются из ресурсов сборки в `%TEMP%\DashcamConverter\ffmpeg`.
+3. `ffmpeg.RootPath` указывает на выбранный каталог.
+
+DLL добавляются в ресурсы через `DashcamConverter.Core.csproj`:
+
+```xml
+<EmbeddedResource Include="..\DashcamConverter\ffmpeg\avcodec-*.dll" />
+<EmbeddedResource Include="..\DashcamConverter\ffmpeg\avformat-*.dll" />
+<EmbeddedResource Include="..\DashcamConverter\ffmpeg\avutil-*.dll" />
+<EmbeddedResource Include="..\DashcamConverter\ffmpeg\swresample-*.dll" />
+<EmbeddedResource Include="..\DashcamConverter\ffmpeg\swscale-*.dll" />
+```
 
 ## Поток данных
 
-```
-Пользователь
-    │
-    ├── CLI: main.py → converter.remux() → ffmpeg.run() → subprocess.Popen
-    │
-    └── GUI: gui.py → converter.remux() → ffmpeg.run() → subprocess.Popen
-                                          ↑
-                                     ffmpeg.exe
-                                          │
-                                     Выходной MP4
-```
-
-## Сборка .exe
-
-```cmd
-pyinstaller --onefile --windowed ^
-    --add-binary "ffmpeg/ffmpeg.exe;ffmpeg" ^
-    --name "DashcamConverter" ^
-    src/main.py
+```text
+GUI/CLI
+  → Converter.Remux()
+    → Ffmpeg.RemuxDirect()
+      → avformat_open_input
+      → avformat_find_stream_info
+      → avformat_alloc_output_context2
+      → avformat_write_header
+      → av_read_frame / av_interleaved_write_frame
+      → av_write_trailer
+  → output .mp4/.mkv
 ```
 
-Результат: один файл `DashcamConverter.exe` (~90-100 MB, из которых ~80 MB — ffmpeg).
+## CI/CD
 
-При запуске PyInstaller распаковывает ffmpeg.exe во временную директорию.
-`ffmpeg.py` находит его через `sys._MEIPASS`.
+`.github/workflows/ci.yml`:
 
-## Этапы реализации (через OpenCode)
+1. Checkout.
+2. Setup .NET 8.
+3. Download FFmpeg shared build from BtbN.
+4. Copy FFmpeg DLL into `DashcamConverter/ffmpeg`.
+5. Generate test fixture `tests/fixtures/test.ts`.
+6. Restore/build/test.
+7. Publish Windows x64 self-contained build.
+8. Zip publish output into `DashcamConverter-win-x64.zip`.
+9. Upload Actions artifact.
+10. On `main`, create/update GitHub Release `v1.0.0` with the zip asset.
 
-1. Инициализация проекта: структура, requirements.txt, .gitignore
-2. `ffmpeg.py` — SSOT-обёртка над FFmpeg subprocess
-3. `converter.py` — функция `remux(input, output)`
-4. `main.py` — CLI с argparse
-5. `gui.py` — окно с drag-and-drop и прогресс-баром
-6. `build.bat` — сборка PyInstaller
-7. Тесты + фикстуры
-8. CI/интеграция на «звёздной»
+## Платформенные ограничения
+
+- GUI-проект — Windows-only (`net8.0-windows`, WinForms).
+- Published package — `win-x64`.
+- Core таргетит `net8.0`, но текущая реализация загрузки нативных библиотек и embedded resources настроена под Windows DLL.
+- Для Linux нужен отдельный entrypoint и загрузка `libav*.so`.
