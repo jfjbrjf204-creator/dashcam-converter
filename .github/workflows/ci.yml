@@ -54,3 +54,16 @@ jobs:
           $env:PATH = "$bin;$env:PATH"
           Write-Host "Testing with FFmpeg at: $bin"
           dotnet test --no-build -c Release --verbosity normal
+
+      - name: Publish Windows package
+        shell: pwsh
+        run: |
+          dotnet publish DashcamConverter/DashcamConverter.csproj -c Release -r win-x64 --self-contained true -o publish
+          Compress-Archive -Path publish\* -DestinationPath DashcamConverter-win-x64.zip -Force
+          Write-Host "Package: $((Get-Item DashcamConverter-win-x64.zip).Length) bytes"
+
+      - name: Upload Windows package
+        uses: actions/upload-artifact@v4
+        with:
+          name: DashcamConverter-win-x64
+          path: DashcamConverter-win-x64.zip
