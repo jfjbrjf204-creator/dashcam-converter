@@ -5,6 +5,7 @@ public class MainForm : Form
     private ListBox _fileListBox = null!;
     private TextBox _outputDirTextBox = null!;
     private ProgressBar _progressBar = null!;
+    private Label _progressPercentLabel = null!;
     private Label _statusLabel = null!;
     private Button _convertButton = null!;
     private Button _addButton = null!;
@@ -16,9 +17,9 @@ public class MainForm : Form
 
     public MainForm()
     {
-        Text = "Dashcam Converter v1.0";
-        Size = new Size(660, 480);
-        MinimumSize = new Size(560, 420);
+        Text = "Dashcam Converter";
+        Size = new Size(660, 520);
+        MinimumSize = new Size(580, 460);
         StartPosition = FormStartPosition.CenterScreen;
         Font = new Font("Segoe UI", 10);
 
@@ -26,23 +27,74 @@ public class MainForm : Form
         {
             Dock = DockStyle.Fill,
             ColumnCount = 1,
-            RowCount = 4,
-            Padding = new Padding(14, 14, 14, 10),
+            RowCount = 6,
+            Padding = new Padding(14, 10, 14, 8),
         };
+        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 36));
         root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         root.RowStyles.Add(new RowStyle(SizeType.Absolute, 60));
+        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 72));
         root.RowStyles.Add(new RowStyle(SizeType.Absolute, 52));
-        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 24));
+        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 26));
         Controls.Add(root);
 
+        BuildHeader(root);
         BuildFileSection(root);
         BuildOutputSection(root);
         BuildProgressSection(root);
-        BuildContactSection(root);
+        BuildConvertSection(root);
+        BuildFooter(root);
 
         Load += OnFormLoad;
         UpdateActionState();
     }
+
+    // ================================================================
+    // HEADER — app title + version
+    // ================================================================
+
+    private void BuildHeader(TableLayoutPanel root)
+    {
+        var panel = new TableLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            ColumnCount = 2,
+            RowCount = 1,
+            Margin = new Padding(0, 0, 0, 4),
+        };
+        panel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        panel.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+        root.Controls.Add(panel, 0, 0);
+
+        var title = new Label
+        {
+            Text = "Dashcam Converter",
+            Dock = DockStyle.Fill,
+            Font = new Font("Segoe UI", 14, FontStyle.Bold),
+            ForeColor = Color.FromArgb(33, 33, 33),
+            TextAlign = ContentAlignment.MiddleLeft,
+        };
+        panel.Controls.Add(title, 0, 0);
+
+        var hash = GetCommitHash();
+        var versionText = hash == "unknown"
+            ? $"v{Program.Version}"
+            : $"v{Program.Version}+{hash}";
+        var versionLabel = new Label
+        {
+            Text = versionText,
+            Dock = DockStyle.Fill,
+            Font = new Font("Consolas", 9),
+            ForeColor = Color.Gray,
+            TextAlign = ContentAlignment.MiddleRight,
+            Padding = new Padding(0, 2, 0, 0),
+        };
+        panel.Controls.Add(versionLabel, 1, 0);
+    }
+
+    // ================================================================
+    // SECTION 1 — file selection
+    // ================================================================
 
     private void BuildFileSection(TableLayoutPanel root)
     {
@@ -56,11 +108,11 @@ public class MainForm : Form
         panel.RowStyles.Add(new RowStyle(SizeType.Absolute, 24));
         panel.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         panel.RowStyles.Add(new RowStyle(SizeType.Absolute, 36));
-        root.Controls.Add(panel, 0, 0);
+        root.Controls.Add(panel, 0, 1);
 
         var header = new Label
         {
-            Text = "Исходные видеофайлы",
+            Text = "1. Исходные видеофайлы",
             Dock = DockStyle.Fill,
             Font = new Font(Font, FontStyle.Bold),
             TextAlign = ContentAlignment.MiddleLeft,
@@ -106,18 +158,11 @@ public class MainForm : Form
         };
         _clearButton.Click += (_, _) => ClearFiles();
         btnRow.Controls.Add(_clearButton, 1, 0);
-
-        _convertButton = new Button
-        {
-            Text = "▶ Старт конвертации",
-            Height = 30,
-            Width = 194,
-            Enabled = false,
-            Font = new Font(Font, FontStyle.Bold),
-        };
-        _convertButton.Click += OnConvert;
-        btnRow.Controls.Add(_convertButton, 3, 0);
     }
+
+    // ================================================================
+    // SECTION 2 — output folder
+    // ================================================================
 
     private void BuildOutputSection(TableLayoutPanel root)
     {
@@ -126,15 +171,15 @@ public class MainForm : Form
             Dock = DockStyle.Fill,
             ColumnCount = 1,
             RowCount = 2,
-            Margin = new Padding(0, 10, 0, 0),
+            Margin = new Padding(0, 8, 0, 0),
         };
         panel.RowStyles.Add(new RowStyle(SizeType.Absolute, 22));
         panel.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-        root.Controls.Add(panel, 0, 1);
+        root.Controls.Add(panel, 0, 2);
 
         var header = new Label
         {
-            Text = "Папка для результатов",
+            Text = "2. Папка для результатов",
             Dock = DockStyle.Fill,
             Font = new Font(Font, FontStyle.Bold),
             TextAlign = ContentAlignment.MiddleLeft,
@@ -170,18 +215,43 @@ public class MainForm : Form
         row.Controls.Add(_browseButton, 1, 0);
     }
 
+    // ================================================================
+    // SECTION 3 — progress bar + status
+    // ================================================================
+
     private void BuildProgressSection(TableLayoutPanel root)
     {
         var panel = new TableLayoutPanel
         {
             Dock = DockStyle.Fill,
             ColumnCount = 1,
-            RowCount = 2,
-            Margin = new Padding(0, 10, 0, 0),
+            RowCount = 3,
+            Margin = new Padding(0, 8, 0, 0),
         };
-        panel.RowStyles.Add(new RowStyle(SizeType.Absolute, 24));
-        panel.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-        root.Controls.Add(panel, 0, 2);
+        panel.RowStyles.Add(new RowStyle(SizeType.Absolute, 22));
+        panel.RowStyles.Add(new RowStyle(SizeType.Absolute, 22));
+        panel.RowStyles.Add(new RowStyle(SizeType.Absolute, 20));
+        root.Controls.Add(panel, 0, 3);
+
+        var header = new Label
+        {
+            Text = "3. Ход конвертации",
+            Dock = DockStyle.Fill,
+            Font = new Font(Font, FontStyle.Bold),
+            TextAlign = ContentAlignment.MiddleLeft,
+        };
+        panel.Controls.Add(header, 0, 0);
+
+        var progressRow = new TableLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            ColumnCount = 2,
+            RowCount = 1,
+            Margin = new Padding(0, 2, 0, 0),
+        };
+        progressRow.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        progressRow.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 48));
+        panel.Controls.Add(progressRow, 0, 1);
 
         _progressBar = new ProgressBar
         {
@@ -189,7 +259,17 @@ public class MainForm : Form
             Maximum = 100,
             Style = ProgressBarStyle.Continuous,
         };
-        panel.Controls.Add(_progressBar, 0, 0);
+        progressRow.Controls.Add(_progressBar, 0, 0);
+
+        _progressPercentLabel = new Label
+        {
+            Text = "0%",
+            TextAlign = ContentAlignment.MiddleRight,
+            Dock = DockStyle.Fill,
+            Font = new Font("Consolas", 10, FontStyle.Bold),
+            ForeColor = Color.DimGray,
+        };
+        progressRow.Controls.Add(_progressPercentLabel, 1, 0);
 
         _statusLabel = new Label
         {
@@ -199,10 +279,14 @@ public class MainForm : Form
             ForeColor = Color.Gray,
             Margin = new Padding(0, 2, 0, 0),
         };
-        panel.Controls.Add(_statusLabel, 0, 1);
+        panel.Controls.Add(_statusLabel, 0, 2);
     }
 
-    private void BuildContactSection(TableLayoutPanel root)
+    // ================================================================
+    // CONVERT CTA — large prominent button
+    // ================================================================
+
+    private void BuildConvertSection(TableLayoutPanel root)
     {
         var panel = new TableLayoutPanel
         {
@@ -211,10 +295,69 @@ public class MainForm : Form
             RowCount = 1,
             Margin = new Padding(0, 8, 0, 0),
         };
+        panel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
+        panel.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+        panel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
+        root.Controls.Add(panel, 0, 4);
+
+        _convertButton = new Button
+        {
+            Text = "▶ НАЧАТЬ КОНВЕРТАЦИЮ",
+            Width = 320,
+            Height = 40,
+            Enabled = false,
+            Font = new Font("Segoe UI", 12, FontStyle.Bold),
+            FlatStyle = FlatStyle.Flat,
+            BackColor = SystemColors.Control,
+            ForeColor = SystemColors.GrayText,
+            Cursor = Cursors.Hand,
+        };
+        _convertButton.FlatAppearance.BorderSize = 0;
+        _convertButton.FlatAppearance.MouseOverBackColor = Color.FromArgb(24, 144, 236);
+        _convertButton.Click += OnConvert;
+        _convertButton.EnabledChanged += (_, _) =>
+        {
+            if (_convertButton.Enabled)
+            {
+                _convertButton.BackColor = Color.FromArgb(0, 120, 212);
+                _convertButton.ForeColor = Color.White;
+            }
+            else
+            {
+                _convertButton.BackColor = SystemColors.Control;
+                _convertButton.ForeColor = SystemColors.GrayText;
+            }
+        };
+        panel.Controls.Add(_convertButton, 1, 0);
+    }
+
+    // ================================================================
+    // FOOTER — contact links
+    // ================================================================
+
+    private void BuildFooter(TableLayoutPanel root)
+    {
+        var panel = new TableLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            ColumnCount = 3,
+            RowCount = 1,
+            Margin = new Padding(0, 4, 0, 0),
+        };
         panel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         panel.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
         panel.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
-        root.Controls.Add(panel, 0, 3);
+        root.Controls.Add(panel, 0, 5);
+
+        var contactLabel = new Label
+        {
+            Text = "Связь:",
+            AutoSize = true,
+            ForeColor = Color.Gray,
+            Font = new Font("Segoe UI", 9),
+            Margin = new Padding(0, 0, 6, 0),
+        };
+        panel.Controls.Add(contactLabel, 0, 0);
 
         var tgLabel = new LinkLabel
         {
@@ -222,13 +365,13 @@ public class MainForm : Form
             AutoSize = true,
             LinkColor = Color.DodgerBlue,
             ActiveLinkColor = Color.RoyalBlue,
+            Font = new Font("Segoe UI", 9),
             Margin = new Padding(0, 0, 16, 0),
         };
         tgLabel.Links.Add(0, tgLabel.Text.Length, "https://t.me/HUU4AB0");
         tgLabel.LinkClicked += (_, e) =>
         {
-            var url = e.Link?.LinkData as string;
-            if (url != null)
+            if (e.Link?.LinkData is string url)
             {
                 try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(url) { UseShellExecute = true }); }
                 catch { }
@@ -242,12 +385,12 @@ public class MainForm : Form
             AutoSize = true,
             LinkColor = Color.DodgerBlue,
             ActiveLinkColor = Color.RoyalBlue,
+            Font = new Font("Segoe UI", 9),
         };
         ghLabel.Links.Add(0, ghLabel.Text.Length, "https://github.com/jfjbrjf204-creator/dashcam-converter");
         ghLabel.LinkClicked += (_, e) =>
         {
-            var url = e.Link?.LinkData as string;
-            if (url != null)
+            if (e.Link?.LinkData is string url)
             {
                 try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(url) { UseShellExecute = true }); }
                 catch { }
@@ -255,6 +398,30 @@ public class MainForm : Form
         };
         panel.Controls.Add(ghLabel, 2, 0);
     }
+
+    // ================================================================
+    // VERSION helpers
+    // ================================================================
+
+    private static string GetCommitHash()
+    {
+        try
+        {
+            foreach (System.Reflection.AssemblyMetadataAttribute attr in
+                typeof(MainForm).Assembly.GetCustomAttributes(
+                    typeof(System.Reflection.AssemblyMetadataAttribute), false))
+            {
+                if (attr.Key == "CommitHash")
+                    return attr.Value ?? "unknown";
+            }
+        }
+        catch { }
+        return "unknown";
+    }
+
+    // ================================================================
+    // EXISTING BEHAVIOR — preserved
+    // ================================================================
 
     private void OnFormLoad(object? sender, EventArgs e)
     {
@@ -296,7 +463,7 @@ public class MainForm : Form
         if (string.IsNullOrWhiteSpace(_outputDirTextBox.Text) && dialog.FileNames.Length > 0)
             _outputDirTextBox.Text = Path.GetDirectoryName(dialog.FileNames[0]) ?? "";
 
-        _statusLabel.Text = $"Выбрано файлов: {_fileListBox.Items.Count}. Нажмите «Старт конвертации».";
+        _statusLabel.Text = $"Готово к запуску. Файлов: {_fileListBox.Items.Count}.";
         UpdateActionState();
     }
 
@@ -304,6 +471,7 @@ public class MainForm : Form
     {
         _fileListBox.Items.Clear();
         _progressBar.Value = 0;
+        _progressPercentLabel.Text = "0%";
         _statusLabel.Text = "Добавьте файлы для конвертации.";
         UpdateActionState();
     }
@@ -356,6 +524,7 @@ public class MainForm : Form
 
         SetBusy(true);
         _progressBar.Value = 0;
+        _progressPercentLabel.Text = "0%";
         _statusLabel.Text = "Конвертация...";
 
         _cts = new CancellationTokenSource();
@@ -367,13 +536,14 @@ public class MainForm : Form
 
             await Task.Run(() =>
             {
-                foreach (var file in files)
+                for (var index = 0; index < files.Length; index++)
                 {
                     if (token.IsCancellationRequested)
                         break;
 
+                    var file = files[index];
                     var fileName = Path.GetFileName(file);
-                    BeginInvoke(() => _statusLabel.Text = $"Конвертация: {fileName}...");
+                    BeginInvoke(() => _statusLabel.Text = $"Файл {index + 1} из {files.Length} — {fileName}");
 
                     var outputPath = Path.Combine(outputDir,
                         Path.ChangeExtension(fileName, ".mp4"));
@@ -388,7 +558,11 @@ public class MainForm : Form
                                 BeginInvoke(() =>
                                 {
                                     if (!token.IsCancellationRequested)
-                                        _progressBar.Value = Math.Min((int)p, 100);
+                                    {
+                                        var pct = Math.Min((int)p, 100);
+                                        _progressBar.Value = pct;
+                                        _progressPercentLabel.Text = $"{pct}%";
+                                    }
                                 });
                             });
 
@@ -419,7 +593,8 @@ public class MainForm : Form
             if (!token.IsCancellationRequested)
             {
                 _progressBar.Value = 100;
-                _statusLabel.Text = $"Готово. Обработано {processed} файлов.";
+                _progressPercentLabel.Text = "100%";
+                _statusLabel.Text = $"Готово. Обработано {processed} из {files.Length} файлов.";
             }
             else
             {
@@ -446,7 +621,7 @@ public class MainForm : Form
         _browseButton.Enabled = !busy;
         _outputDirTextBox.Enabled = !busy;
         _fileListBox.Enabled = !busy;
-        _convertButton.Text = busy ? "Идёт конвертация…" : "▶ Старт конвертации";
+        _convertButton.Text = busy ? "⏳ КОНВЕРТАЦИЯ…" : "▶ НАЧАТЬ КОНВЕРТАЦИЮ";
         UpdateActionState();
     }
 

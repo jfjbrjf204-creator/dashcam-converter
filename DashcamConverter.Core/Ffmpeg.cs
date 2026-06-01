@@ -6,10 +6,12 @@ namespace DashcamConverter;
 public class FfmpegException : Exception
 {
     public string Stderr { get; }
+    public string? Operation { get; }
 
-    public FfmpegException(string message, string stderr = "") : base(message)
+    public FfmpegException(string message, string stderr = "", string? operation = null) : base(message)
     {
         Stderr = stderr;
+        Operation = operation;
     }
 }
 
@@ -23,12 +25,32 @@ public static class Ffmpeg
     private static bool _initialized;
     private static string _dllDir = string.Empty;
 
+    private const int ErrorBufferSize = 64;
+
+    /// <summary>
+    /// Преобразует код ошибки FFmpeg (<c>AVERROR</c>) в читаемое описание через <c>av_strerror</c>.
+    /// Возвращает строку вида <c>"-22: Invalid data found when processing input"</c>
+    /// или <c>"код ошибки -22"</c> если расшифровка недоступна.
+    /// </summary>
+    private static unsafe string FfmpegErrorString(int errcode)
+    {
+        var buffer = stackalloc byte[ErrorBufferSize];
+        var ret = ffmpeg.av_strerror(errcode, buffer, (ulong)ErrorBufferSize);
+        if (ret == 0)
+        {
+            var len = 0;
+            while (len < ErrorBufferSize && buffer[len] != 0)
+                len++;
+            return $"{errcode}: {System.Text.Encoding.UTF8.GetString(buffer, len)}";
+        }
+        return $"код ошибки {errcode}";
+    }
+
     public static void Initialize()
     {
         if (_initialized)
             return;
 
-        // CI override: use pre-downloaded DLLs instead of embedded resources
         var envPath = Environment.GetEnvironmentVariable("DASHCAM_FFMPEG_PATH");
         if (!string.IsNullOrEmpty(envPath) && Directory.Exists(envPath))
         {
@@ -89,25 +111,39 @@ public static class Ffmpeg
         }
     }
 
-    public static unsafe double? ProbeDuration(string inputPath)
+    public static double? ProbeDuration(string inputPath) => ProbeDuration(inputPath, out _);
+
+    public static unsafe double? ProbeDuration(string inputPath, out string? error)
     {
         Initialize();
+        error = null;
 
         AVFormatContext* ctx = null;
         try
         {
             var ret = ffmpeg.avformat_open_input(&ctx, inputPath, null, null);
             if (ret < 0)
+            {
+                error = $"[Ffmpeg.ProbeDuration] avformat_open_input (\"{inputPath}\"): {FfmpegErrorString(ret)}";
                 return null;
+            }
 
             FixCodecIds(ctx);
             ffmpeg.avformat_find_stream_info(ctx, null);
             FixCodecIds(ctx);
+
             var duration = ctx->duration / (double)ffmpeg.AV_TIME_BASE;
-            return duration > 0 ? duration : null;
+            if (duration <= 0)
+            {
+                error = $"[Ffmpeg.ProbeDuration] Не удалось определить длительность \"{inputPath}\": duration = {ctx->duration}";
+                return null;
+            }
+
+            return duration;
         }
-        catch
+        catch (Exception ex)
         {
+            error = $"[Ffmpeg.ProbeDuration] Исключение при анализе \"{inputPath}\": {ex.GetType().Name}: {ex.Message}";
             return null;
         }
         finally
@@ -132,24 +168,24 @@ public static class Ffmpeg
         {
             var ret = ffmpeg.avformat_open_input(&inCtx, inputPath, null, null);
             if (ret < 0)
-                return (ret, $"Не удалось открыть входной файл: {inputPath}");
+                return (ret, $"[Ffmpeg.RemuxDirect] avformat_open_input (\"{inputPath}\"): {FfmpegErrorString(ret)}");
 
             FixCodecIds(inCtx);
             ret = ffmpeg.avformat_find_stream_info(inCtx, null);
             FixCodecIds(inCtx);
             if (ret < 0)
-                return (ret, "Не удалось получить информацию о потоках.");
+                return (ret, $"[Ffmpeg.RemuxDirect] avformat_find_stream_info (\"{inputPath}\"): {FfmpegErrorString(ret)}");
 
             ret = ffmpeg.avformat_alloc_output_context2(&outCtx, null, null, outputPath);
             if (ret < 0)
-                return (ret, $"Не удалось создать выходной файл: {outputPath}");
+                return (ret, $"[Ffmpeg.RemuxDirect] avformat_alloc_output_context2 (\"{outputPath}\"): {FfmpegErrorString(ret)}");
 
             for (int i = 0; i < inCtx->nb_streams; i++)
             {
                 var inStream = inCtx->streams[i];
                 var outStream = ffmpeg.avformat_new_stream(outCtx, null);
                 if (outStream == null)
-                    return (-1, "Не удалось создать выходной поток.");
+                    return (-1, $"[Ffmpeg.RemuxDirect] avformat_new_stream (поток {i}, \"{inputPath}\"): не удалось создать выходной поток.");
 
                 ffmpeg.avcodec_parameters_copy(outStream->codecpar, inStream->codecpar);
                 outStream->codecpar->codec_tag = 0;
@@ -159,12 +195,12 @@ public static class Ffmpeg
             {
                 ret = ffmpeg.avio_open(&outCtx->pb, outputPath, ffmpeg.AVIO_FLAG_WRITE);
                 if (ret < 0)
-                    return (ret, $"Не удалось открыть выходной файл для записи: {outputPath}");
+                    return (ret, $"[Ffmpeg.RemuxDirect] avio_open (\"{outputPath}\"): {FfmpegErrorString(ret)}");
             }
 
             ret = ffmpeg.avformat_write_header(outCtx, null);
             if (ret < 0)
-                return (ret, "Не удалось записать заголовок выходного файла.");
+                return (ret, $"[Ffmpeg.RemuxDirect] avformat_write_header (\"{outputPath}\"): {FfmpegErrorString(ret)}");
 
             pkt = ffmpeg.av_packet_alloc();
             var totalDuration = inCtx->duration / (double)ffmpeg.AV_TIME_BASE;
@@ -203,13 +239,19 @@ public static class Ffmpeg
             if (onProgress != null && totalDuration > 0 && lastPercent < 99.9)
                 onProgress(100.0);
 
-            ffmpeg.av_write_trailer(outCtx);
+            ret = ffmpeg.av_write_trailer(outCtx);
+            if (ret < 0)
+                return (ret, $"[Ffmpeg.RemuxDirect] av_write_trailer (\"{outputPath}\"): {FfmpegErrorString(ret)}");
 
             return (0, string.Empty);
         }
+        catch (FfmpegException ex)
+        {
+            return (-1, $"[Ffmpeg.RemuxDirect] FFmpeg-ошибка при обработке \"{inputPath}\": {ex.Message}");
+        }
         catch (Exception ex)
         {
-            return (-1, ex.Message);
+            return (-1, $"[Ffmpeg.RemuxDirect] Исключение ({ex.GetType().Name}) при обработке \"{inputPath}\": {ex.Message}");
         }
         finally
         {

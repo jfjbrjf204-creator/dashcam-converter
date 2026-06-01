@@ -17,4 +17,17 @@
     <ProjectReference Include="..\DashcamConverter.Core\DashcamConverter.Core.csproj" />
   </ItemGroup>
 
+  <Target Name="SetCommitHash" BeforeTargets="CoreGenerateAssemblyInfo">
+    <Exec Command="git rev-parse --short HEAD" ConsoleToMSBuild="true" StandardOutputImportance="low" IgnoreExitCode="true">
+      <Output TaskParameter="ConsoleOutput" PropertyName="_GitHash" />
+      <Output TaskParameter="ExitCode" PropertyName="_GitExitCode" />
+    </Exec>
+    <PropertyGroup>
+      <CommitHash Condition="'$(_GitExitCode)' == '0' And '$(_GitHash)' != ''">$(_GitHash.Trim())</CommitHash>
+      <CommitHash Condition="'$(CommitHash)' == ''">unknown</CommitHash>
+    </PropertyGroup>
+    <ItemGroup>
+      <AssemblyMetadata Include="CommitHash" Value="$(CommitHash)" />
+    </ItemGroup>
+  </Target>
 </Project>
