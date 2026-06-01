@@ -24,24 +24,22 @@ jobs:
       - name: Download FFmpeg shared DLLs
         shell: pwsh
         run: |
-          $url = "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl-shared.zip"
+          $url = "https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2024-07-12-15-22/ffmpeg-N-116190-gf2e4c1fbac-win64-gpl-shared.zip"
           Invoke-WebRequest -Uri $url -OutFile ffmpeg.zip
-          Expand-Archive -Path ffmpeg.zip -DestinationPath .
-          $ffmpegDir = Get-ChildItem -Directory -Filter "ffmpeg-*" | Select-Object -First 1
+          Expand-Archive -Path ffmpeg.zip -DestinationPath ffmpeg_extracted
           New-Item -ItemType Directory -Force -Path DashcamConverter/ffmpeg
-          Copy-Item "$($ffmpegDir.Name)/bin/avcodec-*.dll" DashcamConverter/ffmpeg/
-          Copy-Item "$($ffmpegDir.Name)/bin/avformat-*.dll" DashcamConverter/ffmpeg/
-          Copy-Item "$($ffmpegDir.Name)/bin/avutil-*.dll" DashcamConverter/ffmpeg/
-          Copy-Item "$($ffmpegDir.Name)/bin/swresample-*.dll" DashcamConverter/ffmpeg/
-          Copy-Item "$($ffmpegDir.Name)/bin/swscale-*.dll" DashcamConverter/ffmpeg/
-          # Export for CI tests — use downloaded DLLs directly
-          "DASHCAM_FFMPEG_PATH=$((Get-Location).Path)/$($ffmpegDir.Name)/bin" >> $env:GITHUB_ENV
+          Copy-Item ffmpeg_extracted/*/bin/avcodec-*.dll DashcamConverter/ffmpeg/
+          Copy-Item ffmpeg_extracted/*/bin/avformat-*.dll DashcamConverter/ffmpeg/
+          Copy-Item ffmpeg_extracted/*/bin/avutil-*.dll DashcamConverter/ffmpeg/
+          Copy-Item ffmpeg_extracted/*/bin/swresample-*.dll DashcamConverter/ffmpeg/
+          Copy-Item ffmpeg_extracted/*/bin/swscale-*.dll DashcamConverter/ffmpeg/
+          $binPath = "$(Get-Location)\ffmpeg_extracted\*\bin" | Resolve-Path
+          "DASHCAM_FFMPEG_PATH=$binPath" >> $env:GITHUB_ENV
 
       - name: Generate test fixture
         shell: pwsh
         run: |
-          $ffmpegDir = Get-ChildItem -Directory -Filter "ffmpeg-*" | Select-Object -First 1
-          $ffmpegExe = Join-Path $ffmpegDir.Name "bin/ffmpeg.exe"
+          $ffmpegExe = Get-ChildItem ffmpeg_extracted/*/bin/ffmpeg.exe | Select-Object -First 1
           New-Item -ItemType Directory -Force -Path tests/fixtures
           & $ffmpegExe -y -f lavfi -i "testsrc=duration=3:size=320x240:rate=25" -c:v libx264 -pix_fmt yuv420p -f mpegts tests/fixtures/test.ts
 
