@@ -48,3 +48,7 @@ Thumbs.db
 .opencode/
 .lsmcp/
 .omo/
+
+# Generated test fixtures
+tests/fixtures/*.ts
+tests/fixtures/*.mp4
