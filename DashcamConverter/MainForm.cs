@@ -18,8 +18,8 @@ public class MainForm : Form
     public MainForm()
     {
         Text = "Dashcam Converter";
-        Size = new Size(680, 560);
-        MinimumSize = new Size(600, 500);
+        Size = new Size(720, 600);
+        MinimumSize = new Size(640, 520);
         StartPosition = FormStartPosition.CenterScreen;
         Font = new Font("Segoe UI", 10);
 
@@ -28,14 +28,14 @@ public class MainForm : Form
             Dock = DockStyle.Fill,
             ColumnCount = 1,
             RowCount = 6,
-            Padding = new Padding(14, 10, 14, 8),
+            Padding = new Padding(16, 14, 16, 10),
         };
-        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 36));
-        root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 72));
-        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 78));
-        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 64));
-        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 34));
+        root.RowStyles.Add(new RowStyle(SizeType.AutoSize));      // 0: Header
+        root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));  // 1: File list
+        root.RowStyles.Add(new RowStyle(SizeType.AutoSize));      // 2: Output
+        root.RowStyles.Add(new RowStyle(SizeType.AutoSize));      // 3: Progress
+        root.RowStyles.Add(new RowStyle(SizeType.AutoSize));      // 4: Convert
+        root.RowStyles.Add(new RowStyle(SizeType.AutoSize));      // 5: Footer
         Controls.Add(root);
 
         BuildHeader(root);
@@ -94,7 +94,7 @@ public class MainForm : Form
             Dock = DockStyle.Fill,
             ColumnCount = 2,
             RowCount = 1,
-            Margin = new Padding(0, 0, 0, 4),
+            Margin = new Padding(0, 0, 0, 10),
         };
         panel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         panel.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
@@ -139,9 +139,9 @@ public class MainForm : Form
             RowCount = 3,
             Margin = Padding.Empty,
         };
-        panel.RowStyles.Add(new RowStyle(SizeType.Absolute, 24));
+        panel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         panel.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-        panel.RowStyles.Add(new RowStyle(SizeType.Absolute, 36));
+        panel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         root.Controls.Add(panel, 0, 1);
 
         var header = new Label
@@ -161,37 +161,32 @@ public class MainForm : Form
         };
         panel.Controls.Add(_fileListBox, 0, 1);
 
-        var btnRow = new TableLayoutPanel
+        var btnRow = new FlowLayoutPanel
         {
-            Dock = DockStyle.Fill,
-            ColumnCount = 4,
-            RowCount = 1,
-            Margin = new Padding(0, 6, 0, 0),
+            Dock = DockStyle.Top,
+            FlowDirection = FlowDirection.LeftToRight,
+            Padding = new Padding(0, 8, 0, 0),
         };
-        btnRow.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
-        btnRow.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
-        btnRow.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-        btnRow.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
         panel.Controls.Add(btnRow, 0, 2);
 
         _addButton = new Button
         {
             Text = "+ Добавить файлы",
-            Width = 148,
+            Width = 150,
             Height = 30,
         };
         _addButton.Click += OnAddFiles;
-        btnRow.Controls.Add(_addButton, 0, 0);
+        btnRow.Controls.Add(_addButton);
 
         _clearButton = new Button
         {
             Text = "Очистить список",
-            Width = 130,
+            Width = 140,
             Height = 30,
             Margin = new Padding(6, 0, 0, 0),
         };
         _clearButton.Click += (_, _) => ClearFiles();
-        btnRow.Controls.Add(_clearButton, 1, 0);
+        btnRow.Controls.Add(_clearButton);
     }
 
     // ================================================================
@@ -205,10 +200,10 @@ public class MainForm : Form
             Dock = DockStyle.Fill,
             ColumnCount = 1,
             RowCount = 2,
-            Margin = new Padding(0, 8, 0, 0),
+            Margin = new Padding(0, 12, 0, 0),
         };
-        panel.RowStyles.Add(new RowStyle(SizeType.Absolute, 22));
-        panel.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        panel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        panel.RowStyles.Add(new RowStyle(SizeType.Absolute, 34));
         root.Controls.Add(panel, 0, 2);
 
         var header = new Label
@@ -228,12 +223,13 @@ public class MainForm : Form
             Margin = new Padding(0, 4, 0, 0),
         };
         row.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-        row.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 90));
+        row.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 105));
         panel.Controls.Add(row, 0, 1);
 
         _outputDirTextBox = new TextBox
         {
-            Dock = DockStyle.Fill,
+            Dock = DockStyle.Top,
+            Height = 28,
             Text = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
         };
         _outputDirTextBox.TextChanged += (_, _) => UpdateActionState();
@@ -260,11 +256,11 @@ public class MainForm : Form
             Dock = DockStyle.Fill,
             ColumnCount = 1,
             RowCount = 3,
-            Margin = new Padding(0, 8, 0, 0),
+            Margin = new Padding(0, 12, 0, 0),
         };
-        panel.RowStyles.Add(new RowStyle(SizeType.Absolute, 22));
-        panel.RowStyles.Add(new RowStyle(SizeType.Absolute, 24));
-        panel.RowStyles.Add(new RowStyle(SizeType.Absolute, 24));
+        panel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        panel.RowStyles.Add(new RowStyle(SizeType.Absolute, 28));
+        panel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         root.Controls.Add(panel, 0, 3);
 
         var header = new Label
@@ -284,7 +280,7 @@ public class MainForm : Form
             Margin = new Padding(0, 2, 0, 0),
         };
         progressRow.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-        progressRow.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 48));
+        progressRow.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 58));
         panel.Controls.Add(progressRow, 0, 1);
 
         _progressBar = new ProgressBar
@@ -327,11 +323,11 @@ public class MainForm : Form
             Dock = DockStyle.Fill,
             ColumnCount = 3,
             RowCount = 1,
-            Margin = new Padding(0, 8, 0, 0),
+            Margin = new Padding(0, 14, 0, 8),
         };
-        panel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
+        panel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 33));
         panel.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
-        panel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
+        panel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 34));
         root.Controls.Add(panel, 0, 4);
 
         _convertButton = new Button
@@ -375,16 +371,12 @@ public class MainForm : Form
 
     private void BuildFooter(TableLayoutPanel root)
     {
-        var panel = new TableLayoutPanel
+        var panel = new FlowLayoutPanel
         {
             Dock = DockStyle.Fill,
-            ColumnCount = 3,
-            RowCount = 1,
-            Margin = new Padding(0, 4, 0, 0),
+            FlowDirection = FlowDirection.LeftToRight,
+            Margin = new Padding(0, 8, 0, 0),
         };
-        panel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-        panel.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
-        panel.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
         root.Controls.Add(panel, 0, 5);
 
         var contactLabel = new Label
@@ -393,9 +385,9 @@ public class MainForm : Form
             AutoSize = true,
             ForeColor = Color.Gray,
             Font = new Font("Segoe UI", 9),
-            Margin = new Padding(0, 0, 6, 0),
+            Margin = new Padding(0, 0, 12, 0),
         };
-        panel.Controls.Add(contactLabel, 0, 0);
+        panel.Controls.Add(contactLabel);
 
         var tgLabel = new LinkLabel
         {
@@ -404,7 +396,7 @@ public class MainForm : Form
             LinkColor = Color.DodgerBlue,
             ActiveLinkColor = Color.RoyalBlue,
             Font = new Font("Segoe UI", 9),
-            Margin = new Padding(0, 0, 16, 0),
+            Margin = new Padding(0, 0, 12, 0),
         };
         tgLabel.Links.Add(0, tgLabel.Text.Length, "https://t.me/HUU4AB0");
         tgLabel.LinkClicked += (_, e) =>
@@ -415,7 +407,7 @@ public class MainForm : Form
                 catch { }
             }
         };
-        panel.Controls.Add(tgLabel, 1, 0);
+        panel.Controls.Add(tgLabel);
 
         var ghLabel = new LinkLabel
         {
@@ -424,6 +416,7 @@ public class MainForm : Form
             LinkColor = Color.DodgerBlue,
             ActiveLinkColor = Color.RoyalBlue,
             Font = new Font("Segoe UI", 9),
+            Margin = new Padding(0, 0, 12, 0),
         };
         ghLabel.Links.Add(0, ghLabel.Text.Length, "https://github.com/jfjbrjf204-creator/dashcam-converter");
         ghLabel.LinkClicked += (_, e) =>
@@ -434,7 +427,7 @@ public class MainForm : Form
                 catch { }
             }
         };
-        panel.Controls.Add(ghLabel, 2, 0);
+        panel.Controls.Add(ghLabel);
     }
 
     // ================================================================
