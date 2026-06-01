@@ -1,4 +1,5 @@
 using System.Reflection;
+using System.Runtime.InteropServices;
 using FFmpeg.AutoGen;
 
 namespace DashcamConverter;
@@ -361,7 +362,7 @@ public static class Ffmpeg
 
                 if (needsTranscode)
                 {
-                    DebugLog.Write("CODEC", $"stream #{i} audio: needs transcode (incompatible codec for {outCtx->oformat->name})");
+                    DebugLog.Write("CODEC", $"stream #{i} audio: needs transcode (incompatible codec for {Marshal.PtrToStringAnsi((IntPtr)outCtx->oformat->name)})");
                     var decoder = ffmpeg.avcodec_find_decoder(inStream->codecpar->codec_id);
                     if (decoder == null)
                     {
@@ -417,7 +418,7 @@ public static class Ffmpeg
                         return (-1, $"[FFMPEG-033] No compatible audio encoder found (stream {i}).");
                     }
 
-                    DebugLog.Write("CODEC", $"stream #{i}: decoder={decoder->name} ({decoder->id}), encoder={encoder->name} ({encoderCodecId})");
+                    DebugLog.Write("CODEC", $"stream #{i}: decoder={Marshal.PtrToStringAnsi((IntPtr)decoder->name)} ({decoder->id}), encoder={Marshal.PtrToStringAnsi((IntPtr)encoder->name)} ({encoderCodecId})");
                     var encCtx = ffmpeg.avcodec_alloc_context3(encoder);
                     if (encCtx == null)
                     {
@@ -570,7 +571,7 @@ public static class Ffmpeg
                 }
                 else
                 {
-                    DebugLog.Write("STREAM", $"stream #{i} {MediaTypeName(inStream->codecpar->codec_type)}: stream copy (compatible with {outCtx->oformat->name})");
+                    DebugLog.Write("STREAM", $"stream #{i} {MediaTypeName(inStream->codecpar->codec_type)}: stream copy (compatible with {Marshal.PtrToStringAnsi((IntPtr)outCtx->oformat->name)})");
                     var outStream = ffmpeg.avformat_new_stream(outCtx, null);
                     if (outStream == null)
                     {
