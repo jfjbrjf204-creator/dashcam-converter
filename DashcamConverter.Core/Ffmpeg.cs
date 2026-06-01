@@ -649,62 +649,115 @@ public static class Ffmpeg
                         DebugLog.Write("ENCODE", $"avcodec_receive_frame(stream #{inIdx}): sample_count={ts.sampleCount}, nb_samples={ts.decFrame->nb_samples}");
 
                         var inStreamRef = inCtx->streams[inIdx];
-                        if (ts.decFrame->pts == ffmpeg.AV_NOPTS_VALUE)
-                            ts.decFrame->pts = ts.sampleCount;
-                        ts.sampleCount += ts.decFrame->nb_samples;
-                        ts.decFrame->pts = ffmpeg.av_rescale_q(
-                            ts.decFrame->pts, inStreamRef->time_base, ts.encCtx->time_base);
 
-                        AVFrame* frameToSend;
                         if (ts.swrCtx != null)
                         {
-                            ret = ffmpeg.swr_convert(ts.swrCtx, ts.encFrame->extended_data, ts.encFrame->nb_samples,
-                                                           ts.decFrame->extended_data, ts.decFrame->nb_samples);
+                            // Phase 1: Feed decoded samples into resampler FIFO
+                            ret = ffmpeg.swr_convert(ts.swrCtx, null, 0,
+                                                     ts.decFrame->extended_data, ts.decFrame->nb_samples);
                             if (ret < 0)
                             {
-                                DebugLog.Write("ENCODE", $"swr_convert error (stream #{inIdx}): ret={ret}");
+                                DebugLog.Write("ENCODE", $"swr_convert feed error (stream #{inIdx}): ret={ret}");
                                 break;
                             }
-                            ts.encFrame->nb_samples = ret;
-                            ts.encFrame->pts = ts.decFrame->pts;
-                            frameToSend = ts.encFrame;
+                            DebugLog.Write("ENCODE", $"swr_convert feed: {ts.decFrame->nb_samples} samples (stream #{inIdx})");
+
+                            // Phase 2: Drain resampler in frame_size chunks
+                            int encoderFrameSize = ts.encCtx->frame_size > 0 ? ts.encCtx->frame_size : 1024;
+                            while (true)
+                            {
+                                int available = ffmpeg.swr_get_out_samples(ts.swrCtx, 0);
+                                if (available < encoderFrameSize)
+                                    break;
+
+                                int makRet = ffmpeg.av_frame_make_writable(ts.encFrame);
+                                if (makRet < 0)
+                                {
+                                    DebugLog.Write("ENCODE", $"av_frame_make_writable error (stream #{inIdx}): ret={makRet}");
+                                    break;
+                                }
+
+                                ts.encFrame->nb_samples = encoderFrameSize;
+                                ret = ffmpeg.swr_convert(ts.swrCtx,
+                                                         ts.encFrame->extended_data, ts.encFrame->nb_samples,
+                                                         null, 0);
+                                if (ret <= 0)
+                                    break;
+                                ts.encFrame->nb_samples = ret;
+
+                                ts.encFrame->pts = ffmpeg.av_rescale_q(
+                                    ts.sampleCount, inStreamRef->time_base, ts.encCtx->time_base);
+                                ts.sampleCount += ret;
+
+                                DebugLog.Write("ENCODE", $"swr_convert drain: produced {ret} samples, pts={ts.encFrame->pts} (stream #{inIdx})");
+
+                                int encRet = ffmpeg.avcodec_send_frame(ts.encCtx, ts.encFrame);
+                                if (encRet < 0)
+                                {
+                                    DebugLog.Write("ENCODE", $"avcodec_send_frame error (stream #{inIdx}): ret={encRet}");
+                                    break;
+                                }
+
+                                int pktCount = 0;
+                                while (ffmpeg.avcodec_receive_packet(ts.encCtx, ts.encPkt) >= 0)
+                                {
+                                    pktCount++;
+                                    ts.encPkt->stream_index = ts.outStreamIdx;
+                                    var outStreamRef = outCtx->streams[ts.outStreamIdx];
+                                    ts.encPkt->pts = ffmpeg.av_rescale_q_rnd(
+                                        ts.encPkt->pts, ts.encCtx->time_base, outStreamRef->time_base,
+                                        AVRounding.AV_ROUND_NEAR_INF | AVRounding.AV_ROUND_PASS_MINMAX);
+                                    ts.encPkt->dts = ffmpeg.av_rescale_q_rnd(
+                                        ts.encPkt->dts, ts.encCtx->time_base, outStreamRef->time_base,
+                                        AVRounding.AV_ROUND_NEAR_INF | AVRounding.AV_ROUND_PASS_MINMAX);
+                                    ts.encPkt->duration = ffmpeg.av_rescale_q(
+                                        ts.encPkt->duration, ts.encCtx->time_base, outStreamRef->time_base);
+                                    ts.encPkt->pos = -1;
+
+                                    ffmpeg.av_interleaved_write_frame(outCtx, ts.encPkt);
+                                    ffmpeg.av_packet_unref(ts.encPkt);
+                                }
+                                DebugLog.Write("ENCODE", $"avcodec_receive_packet(stream #{inIdx}): {pktCount} packets written");
+                            }
                         }
                         else
                         {
-                            frameToSend = ts.decFrame;
-                        }
+                            // No resampler: send decoder frame directly to encoder
+                            ts.decFrame->pts = ffmpeg.av_rescale_q(
+                                ts.sampleCount, inStreamRef->time_base, ts.encCtx->time_base);
+                            ts.sampleCount += ts.decFrame->nb_samples;
 
-                        ret = ffmpeg.avcodec_send_frame(ts.encCtx, frameToSend);
-                        if (ret < 0)
-                        {
-                            DebugLog.Write("ENCODE", $"avcodec_send_frame error (stream #{inIdx}): ret={ret}");
-                            break;
-                        }
+                            ret = ffmpeg.avcodec_send_frame(ts.encCtx, ts.decFrame);
+                            if (ret < 0)
+                            {
+                                DebugLog.Write("ENCODE", $"avcodec_send_frame error (stream #{inIdx}): ret={ret}");
+                                break;
+                            }
 
-                        int pktCount = 0;
-                        while (ffmpeg.avcodec_receive_packet(ts.encCtx, ts.encPkt) >= 0)
-                        {
-                            pktCount++;
-                            ts.encPkt->stream_index = ts.outStreamIdx;
-                            var outStreamRef = outCtx->streams[ts.outStreamIdx];
-                            ts.encPkt->pts = ffmpeg.av_rescale_q_rnd(
-                                ts.encPkt->pts, ts.encCtx->time_base, outStreamRef->time_base,
-                                AVRounding.AV_ROUND_NEAR_INF | AVRounding.AV_ROUND_PASS_MINMAX);
-                            ts.encPkt->dts = ffmpeg.av_rescale_q_rnd(
-                                ts.encPkt->dts, ts.encCtx->time_base, outStreamRef->time_base,
-                                AVRounding.AV_ROUND_NEAR_INF | AVRounding.AV_ROUND_PASS_MINMAX);
-                            ts.encPkt->duration = ffmpeg.av_rescale_q(
-                                ts.encPkt->duration, ts.encCtx->time_base, outStreamRef->time_base);
-                            ts.encPkt->pos = -1;
+                            int pktCount = 0;
+                            while (ffmpeg.avcodec_receive_packet(ts.encCtx, ts.encPkt) >= 0)
+                            {
+                                pktCount++;
+                                ts.encPkt->stream_index = ts.outStreamIdx;
+                                var outStreamRef = outCtx->streams[ts.outStreamIdx];
+                                ts.encPkt->pts = ffmpeg.av_rescale_q_rnd(
+                                    ts.encPkt->pts, ts.encCtx->time_base, outStreamRef->time_base,
+                                    AVRounding.AV_ROUND_NEAR_INF | AVRounding.AV_ROUND_PASS_MINMAX);
+                                ts.encPkt->dts = ffmpeg.av_rescale_q_rnd(
+                                    ts.encPkt->dts, ts.encCtx->time_base, outStreamRef->time_base,
+                                    AVRounding.AV_ROUND_NEAR_INF | AVRounding.AV_ROUND_PASS_MINMAX);
+                                ts.encPkt->duration = ffmpeg.av_rescale_q(
+                                    ts.encPkt->duration, ts.encCtx->time_base, outStreamRef->time_base);
+                                ts.encPkt->pos = -1;
 
-                            ffmpeg.av_interleaved_write_frame(outCtx, ts.encPkt);
-                            ffmpeg.av_packet_unref(ts.encPkt);
+                                ffmpeg.av_interleaved_write_frame(outCtx, ts.encPkt);
+                                ffmpeg.av_packet_unref(ts.encPkt);
+                            }
+                            DebugLog.Write("ENCODE", $"avcodec_receive_packet(stream #{inIdx}): {pktCount} packets written");
                         }
-                        DebugLog.Write("ENCODE", $"avcodec_receive_packet(stream #{inIdx}): {pktCount} packets written");
 
                         ffmpeg.av_frame_unref(ts.decFrame);
-                        if (ts.swrCtx != null)
-                            ffmpeg.av_frame_unref(ts.encFrame);
+                        // NOTE: encFrame is NOT unreffed — buffer persists for future swr drain calls
                     }
                     DebugLog.Write("ENCODE", $"avcodec_receive_frame loop done (stream #{inIdx}): {frameCount} frames, ret={ret}");
 
@@ -786,52 +839,91 @@ public static class Ffmpeg
                 {
                     flushFrameCount++;
                     var inStreamRef = inCtx->streams[ts.inStreamIdx];
-                    if (ts.decFrame->pts == ffmpeg.AV_NOPTS_VALUE)
-                        ts.decFrame->pts = ts.sampleCount;
-                    ts.sampleCount += ts.decFrame->nb_samples;
-                    ts.decFrame->pts = ffmpeg.av_rescale_q(
-                        ts.decFrame->pts, inStreamRef->time_base, ts.encCtx->time_base);
 
-                    AVFrame* frameToSend2;
                     if (ts.swrCtx != null)
                     {
-                        ret = ffmpeg.swr_convert(ts.swrCtx, ts.encFrame->extended_data, ts.encFrame->nb_samples,
-                                                       ts.decFrame->extended_data, ts.decFrame->nb_samples);
+                        // Feed decoder flush frames into resampler; accumulated and drained below
+                        ret = ffmpeg.swr_convert(ts.swrCtx, null, 0,
+                                                 ts.decFrame->extended_data, ts.decFrame->nb_samples);
                         if (ret < 0) break;
-                        ts.encFrame->nb_samples = ret;
-                        ts.encFrame->pts = ts.decFrame->pts;
-                        frameToSend2 = ts.encFrame;
                     }
                     else
                     {
-                        frameToSend2 = ts.decFrame;
-                    }
+                        ts.decFrame->pts = ffmpeg.av_rescale_q(
+                            ts.sampleCount, inStreamRef->time_base, ts.encCtx->time_base);
+                        ts.sampleCount += ts.decFrame->nb_samples;
 
-                    ffmpeg.avcodec_send_frame(ts.encCtx, frameToSend2);
-                    while (ffmpeg.avcodec_receive_packet(ts.encCtx, ts.encPkt) >= 0)
-                    {
-                        ts.encPkt->stream_index = ts.outStreamIdx;
-                        var outStreamRef = outCtx->streams[ts.outStreamIdx];
-                        ts.encPkt->pts = ffmpeg.av_rescale_q_rnd(
-                            ts.encPkt->pts, ts.encCtx->time_base, outStreamRef->time_base,
-                            AVRounding.AV_ROUND_NEAR_INF | AVRounding.AV_ROUND_PASS_MINMAX);
-                        ts.encPkt->dts = ffmpeg.av_rescale_q_rnd(
-                            ts.encPkt->dts, ts.encCtx->time_base, outStreamRef->time_base,
-                            AVRounding.AV_ROUND_NEAR_INF | AVRounding.AV_ROUND_PASS_MINMAX);
-                        ts.encPkt->duration = ffmpeg.av_rescale_q(
-                            ts.encPkt->duration, ts.encCtx->time_base, outStreamRef->time_base);
-                        ts.encPkt->pos = -1;
-
-                        ffmpeg.av_interleaved_write_frame(outCtx, ts.encPkt);
-                        ffmpeg.av_packet_unref(ts.encPkt);
+                        int encRet = ffmpeg.avcodec_send_frame(ts.encCtx, ts.decFrame);
+                        if (encRet < 0) break;
+                        while (ffmpeg.avcodec_receive_packet(ts.encCtx, ts.encPkt) >= 0)
+                        {
+                            ts.encPkt->stream_index = ts.outStreamIdx;
+                            var outStreamRef = outCtx->streams[ts.outStreamIdx];
+                            ts.encPkt->pts = ffmpeg.av_rescale_q_rnd(
+                                ts.encPkt->pts, ts.encCtx->time_base, outStreamRef->time_base,
+                                AVRounding.AV_ROUND_NEAR_INF | AVRounding.AV_ROUND_PASS_MINMAX);
+                            ts.encPkt->dts = ffmpeg.av_rescale_q_rnd(
+                                ts.encPkt->dts, ts.encCtx->time_base, outStreamRef->time_base,
+                                AVRounding.AV_ROUND_NEAR_INF | AVRounding.AV_ROUND_PASS_MINMAX);
+                            ts.encPkt->duration = ffmpeg.av_rescale_q(
+                                ts.encPkt->duration, ts.encCtx->time_base, outStreamRef->time_base);
+                            ts.encPkt->pos = -1;
+                            ffmpeg.av_interleaved_write_frame(outCtx, ts.encPkt);
+                            ffmpeg.av_packet_unref(ts.encPkt);
+                        }
                     }
 
                     ffmpeg.av_frame_unref(ts.decFrame);
-                    if (ts.swrCtx != null)
-                        ffmpeg.av_frame_unref(ts.encFrame);
+                }
+                DebugLog.Write("ENCODE", $"decoder flush complete (stream #{ts.inStreamIdx}): {flushFrameCount} frames flushed");
+
+                if (ts.swrCtx != null)
+                {
+                    // Drain remaining resampler output after all input consumed
+                    DebugLog.Write("ENCODE", $"swr drain remaining (stream #{ts.inStreamIdx})");
+                    int encoderFrameSize = ts.encCtx->frame_size > 0 ? ts.encCtx->frame_size : 1024;
+                    while (true)
+                    {
+                        int available = ffmpeg.swr_get_out_samples(ts.swrCtx, 0);
+                        if (available <= 0) break;
+
+                        int makRet = ffmpeg.av_frame_make_writable(ts.encFrame);
+                        if (makRet < 0) break;
+
+                        int toGet = available < encoderFrameSize ? available : encoderFrameSize;
+                        ts.encFrame->nb_samples = toGet;
+                        ret = ffmpeg.swr_convert(ts.swrCtx,
+                                                 ts.encFrame->extended_data, ts.encFrame->nb_samples,
+                                                 null, 0);
+                        if (ret <= 0) break;
+                        ts.encFrame->nb_samples = ret;
+                        ts.encFrame->pts = ffmpeg.av_rescale_q(
+                            ts.sampleCount, inCtx->streams[ts.inStreamIdx]->time_base, ts.encCtx->time_base);
+                        ts.sampleCount += ret;
+
+                        DebugLog.Write("ENCODE", $"swr drain: produced {ret} samples (flush, stream #{ts.inStreamIdx})");
+                        int encRet = ffmpeg.avcodec_send_frame(ts.encCtx, ts.encFrame);
+                        if (encRet < 0) break;
+                        while (ffmpeg.avcodec_receive_packet(ts.encCtx, ts.encPkt) >= 0)
+                        {
+                            ts.encPkt->stream_index = ts.outStreamIdx;
+                            var outStreamRef = outCtx->streams[ts.outStreamIdx];
+                            ts.encPkt->pts = ffmpeg.av_rescale_q_rnd(
+                                ts.encPkt->pts, ts.encCtx->time_base, outStreamRef->time_base,
+                                AVRounding.AV_ROUND_NEAR_INF | AVRounding.AV_ROUND_PASS_MINMAX);
+                            ts.encPkt->dts = ffmpeg.av_rescale_q_rnd(
+                                ts.encPkt->dts, ts.encCtx->time_base, outStreamRef->time_base,
+                                AVRounding.AV_ROUND_NEAR_INF | AVRounding.AV_ROUND_PASS_MINMAX);
+                            ts.encPkt->duration = ffmpeg.av_rescale_q(
+                                ts.encPkt->duration, ts.encCtx->time_base, outStreamRef->time_base);
+                            ts.encPkt->pos = -1;
+                            ffmpeg.av_interleaved_write_frame(outCtx, ts.encPkt);
+                            ffmpeg.av_packet_unref(ts.encPkt);
+                        }
+                    }
+                    DebugLog.Write("ENCODE", $"swr drain complete, total_samples={ts.sampleCount} (stream #{ts.inStreamIdx})");
                 }
 
-                DebugLog.Write("ENCODE", $"decoder flush complete (stream #{ts.inStreamIdx}): {flushFrameCount} frames flushed, total_samples={ts.sampleCount}");
                 transcodeStates[ti] = ts;
 
                 // Flush encoder
